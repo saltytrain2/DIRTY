@@ -10,10 +10,10 @@ import webdataset as wds
 from torch.nn.utils.rnn import pad_sequence
 from tqdm import tqdm
 
-from utils.code_processing import tokenize_raw_code
-from utils.function import CollectedFunction, Function
-from utils.variable import Location, Variable, location_from_json_key, Register, Stack
-from utils.dire_types import Struct, TypeLibCodec, TypeLib, UDT, TypeInfo, Disappear
+from code_processing import tokenize_raw_code
+from ghidra_function import CollectedFunction, Function
+from ghidra_variable import Location, Variable, location_from_json_key, Register, Stack
+from ghidra_types import Struct, TypeLibCodec, TypeLib, UDT, TypeInfo, Disappear
 
 
 class Example:
@@ -81,10 +81,11 @@ class Example:
 
         # Remove variables that overlap on memory or don't appear in the code tokens
         source_code_tokens_set = set(code_tokens)
-        target_code_tokens_set = set(tokenize_raw_code(cf.debug.raw_code))
+        #target_code_tokens_set = set(tokenize_raw_code(cf.debug.raw_code))
 
         source = Example.filter(source, source_code_tokens_set)
-        target = Example.filter(target, target_code_tokens_set, set(source.keys()))
+        # target = Example.filter(target, target_code_tokens_set, set(source.keys()))
+        target = Example.filter(target, None, set(source.keys()))
 
         # Assign type "Disappear" to variables not existing in the ground truth
         varnames = set()

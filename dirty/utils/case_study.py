@@ -5,7 +5,7 @@ from collections import defaultdict, Counter
 import torch
 from tqdm import tqdm
 
-from utils.evaluate import add_options, load_data
+from evaluate import add_options, load_data
 
 
 def view(c, cc, dcc):

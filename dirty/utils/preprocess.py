@@ -28,10 +28,10 @@ import ujson as json
 from docopt import docopt
 from tqdm import tqdm
 
-from utils.dataset import Example
-from utils.dire_types import TypeInfo, TypeLib, TypeLibCodec
-from utils.function import CollectedFunction
-from utils.code_processing import canonicalize_code
+from dataset import Example
+from ghidra_types import TypeInfo, TypeLib, TypeLibCodec
+from ghidra_function import CollectedFunction
+from code_processing import canonicalize_code
 
 all_functions = dict()  # indexed by binaries
 
@@ -118,7 +118,7 @@ def main(args):
     os.system(f"mkdir -p {tgt_folder}")
     os.system(f"mkdir -p {tgt_folder}/files")
     os.system(f"mkdir -p {tgt_folder}/types")
-    num_workers = 16
+    num_workers = 4
 
     valid_example_count = 0
 

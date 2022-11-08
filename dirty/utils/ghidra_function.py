@@ -1,0 +1,1 @@
+../../binary/ghidra_function.py

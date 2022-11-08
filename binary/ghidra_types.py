@@ -12,10 +12,15 @@ import gzip
 import os
 import typing as t
 
-import ghidra.program.model.listing as listing
-import ghidra.program.model.data as data
-from ghidra.program.model.data import PointerDataType, ArrayDataType, StructureDataType, UnionDataType
-from ghidra.program.database.data import PointerDB
+
+# hack to only use ghidra when analyzing files
+try:
+    import ghidra.program.model.listing as listing
+    import ghidra.program.model.data as data
+    from ghidra.program.model.data import PointerDataType, ArrayDataType, StructureDataType, UnionDataType
+    from ghidra.program.database.data import PointerDB
+except ImportError:
+    pass
 # try:
 #     import ida_typeinf  # type: ignore
 # except ImportError:

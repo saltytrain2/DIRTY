@@ -9,6 +9,7 @@ try:
     from ghidra_types import TypeLibCodec, TypeInfo
     from ghidra_variable import Location, Stack, Variable, location_from_json_key
 except ImportError:
+    pass
     from .ghidra_ast import AST
     from .ghidra_types import TypeLibCodec, TypeInfo
     from .ghidra_variable import Location, Stack, Variable, location_from_json_key

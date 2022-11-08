@@ -1,7 +1,7 @@
 import re
 from typing import List, Set
 
-from utils.lexer import *
+from lexer import *
 
 
 VARIABLE_ANNOTATION = re.compile(r"@@\w+@@(\w+)@@\w+")

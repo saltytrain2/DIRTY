@@ -20,8 +20,8 @@ import json
 import sentencepiece as spm
 from tqdm import tqdm
 
-from utils.dire_types import TypeLibCodec
-from utils.variable import Register
+from ghidra_types import TypeLibCodec
+from ghidra_variable import Register
 
 
 SAME_VARIABLE_TOKEN = "<IDENTITY>"
