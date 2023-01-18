@@ -2,6 +2,7 @@ import os
 import pickle
 
 from ghidra.app.decompiler import DecompInterface
+from ghidra.program.model.data import Undefined
 
 from collect import Collector
 from ghidra_function import Function
@@ -29,6 +30,7 @@ class CollectDebug(Collector):
         print("Collecting vars and types.")
         # `ea` is the start address of a single function
         decomp = DecompInterface()
+        decomp.toggleSyntaxTree(False)
         decomp.openProgram(currentProgram)
 
         # Ghidra separates Variables from their Data info, populate typelib first
@@ -46,23 +48,30 @@ class CollectDebug(Collector):
                 continue
 
             # Function info
+            high_func = decomp_results.getHighFunction()
+            lsm = high_func.getLocalSymbolMap()
+            symbols = [v for v in lsm.getSymbols()]
+            func_return = high_func.getFunctionPrototype().getReturnType()
+
             name: str = f.getName()
-            self.type_lib.add_ghidra_type(f.getReturnType())
-            return_type = TypeLib.parse_ghidra_type(f.getReturnType())
+            self.type_lib.add_ghidra_type(func_return)
+            return_type = TypeLib.parse_ghidra_type(func_return)
 
             arguments = self.collect_variables(
-                f.getStackFrame().getFrameSize(), f.getParameters()
+                f.getStackFrame().getFrameSize(), [v for v in symbols if v.isParameter() and not isinstance(v.getDataType(), Undefined.__pytype__)],
             )
             local_vars = self.collect_variables(
-                f.getStackFrame().getFrameSize(),
-                # [v for v in f.getLocalVariables()],
-                f.getLocalVariables()
+                f.getStackFrame().getFrameSize(), [v for v in symbols if not v.isParameter() and not isinstance(v.getDataType(), Undefined.__pytype__)],
             )
+
+            raw_code = decomp_results.getCCodeMarkup().toString()
+
             self.functions[f.getEntryPoint().toString()] = Function(
                 name=name,
                 return_type=return_type,
                 arguments=arguments,
                 local_vars=local_vars,
+                raw_code=raw_code,
             )
 
         self.write_type_lib()

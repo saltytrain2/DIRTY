@@ -18,7 +18,7 @@ try:
     import ghidra.program.model.listing as listing
     import ghidra.program.model.data as data
     from ghidra.program.model.data import PointerDataType, ArrayDataType, StructureDataType, UnionDataType
-    from ghidra.program.database.data import PointerDB
+    from ghidra.program.database.data import PointerDB, ArrayDB, StructureDB, UnionDB
 except ImportError:
     pass
 # try:
@@ -163,71 +163,6 @@ class TypeLib:
         else:
             self._data = data
 
-    # TODO change to ghidra
-    # @staticmethod
-    # def parse_ghidra_type(data: "ghidra.program.model.data") -> "TypeInfo":
-    #     typ = data.getDataType()
-    #     """Parses an IDA tinfo_t object"""
-    #     # if typ.is_void()
-    #     #     return Void()
-    #     # if typ.is_funcptr() or "(" in typ.dstr():
-    #     #     return FunctionPointer(name=typ.dstr())
-    #     if data.isPointer():
-    #         return Pointer(typ.getName())
-    #     if data.isArray():
-    #         # To get array type info, first create an
-    #         # array_type_data_t then call get_array_details to
-    #         # populate it. Unions and structs follow a similar
-    #         # pattern.
-    #         nelements = typ.getNumElements()
-    #         element_size = typ.getElementLength()
-    #         element_type = typ.getName()
-    #         return Array(
-    #             nelements=nelements,
-    #             element_size=element_size,
-    #             element_type=element_type,
-    #         )
-    #     if data.isStructure():
-    #         name = typ.getName()
-    #         size = typ.getLength()
-    #         components = data.getComponents()
-    #         layout = []
-    #         local_size = 0
-    #         for component in components:
-    #             component_name = component.getName()
-    #             component_size = component.getLength()
-    #             component_type = component.getDataType().getName()
-    #             if typ.getComponent(component.getOffset()) is None:
-    #                 layout.append(UDT.Padding(component_size))
-    #             else:
-    #                 layout.append(UDT.Field(
-    #                     name=component_name, size=component_size, type_name=component_type
-    #                 ))
-    #             local_size += component_size
-            
-    #         end_padding = size - local_size
-    #         if end_padding > 0:
-    #             layout.append(UDT.Padding(end_padding))
-    #         return Struct(name=name, layout=layout)
-    #     if data.isUnion():
-    #         name = typ.getName()
-    #         size = typ.getLength()
-    #         components = data.getComponents()
-    #         members = []
-    #         largest_size = 0
-    #         for component in components:
-    #             component_name = component.getFieldName()
-    #             type_name = component.getDataType().getName()
-    #             largest_size = max(largest_size, component.getLength())
-    #             members.append(UDT.Field(
-    #                 name=component_name, size=component.getLength(), type_name=type_name))
-    #         end_padding = size - (largest_size // 8)
-    #         if not end_padding:
-    #             return Union(name=name, members=members)
-    #         return Union(name=name, members=members, padding=UDT.Padding(end_padding))
-
-    #     return TypeInfo(name=typ.getName(), size=typ.getLength())
-
     @staticmethod
     def parse_ghidra_type(typ: "ghidra.program.model.data") -> "TypeInfo":
         """Parses an IDA tinfo_t object"""
@@ -240,7 +175,7 @@ class TypeLib:
 
         if isinstance(typ, (PointerDataType.__pytype__, PointerDB.__pytype__)):
             return Pointer(typ.getName())
-        if isinstance(typ, type(ArrayDataType)):
+        if isinstance(typ, (ArrayDataType.__pytype__, ArrayDB.__pytype__)):
             # To get array type info, first create an
             # array_type_data_t then call get_array_details to
             # populate it. Unions and structs follow a similar
@@ -253,14 +188,15 @@ class TypeLib:
                 element_size=element_size,
                 element_type=element_type,
             )
-        if isinstance(typ, StructureDataType.__pytype__):
+        if isinstance(typ, (StructureDataType.__pytype__, StructureDB.__pytype__)):
             name = typ.getName()
             size = typ.getLength()
-            components = typ.getComponents()
+            components = typ.getDefinedComponents()
             layout = []
             local_size = 0
+            print(f"{name} {typ.getNumDefinedComponents()}")
             for component in components:
-                component_name = component.getName()
+                component_name = component.getFieldName()
                 component_size = component.getLength()
                 component_type = component.getDataType().getName()
                 if typ.getComponentAt(component.getOffset()) is None:
@@ -275,7 +211,7 @@ class TypeLib:
             if end_padding > 0:
                 layout.append(UDT.Padding(end_padding))
             return Struct(name=name, layout=layout)
-        if isinstance(typ, UnionDataType.__pytype__):
+        if isinstance(typ, (UnionDataType.__pytype__, UnionDB.__pytype__)):
             name = typ.getName()
             size = typ.getLength()
             components = typ.getComponents()
@@ -306,7 +242,7 @@ class TypeLib:
         worklist.add(typ.getName())
         new_type: TypeInfo = self.parse_ghidra_type(typ)
         # If this type isn't a duplicate, break down the subtypes, if any exists
-        if not self._data[new_type.size].add(new_type) and isinstance(typ, (StructureDataType.__pytype__, UnionDataType.__pytype__)):
+        if not self._data[new_type.size].add(new_type) and isinstance(typ, (StructureDataType.__pytype__, UnionDataType.__pytype__, StructureDB.__pytype__, UnionDB.__pytype__)):
             components = typ.getComponents()
             for component in components:
                 self.add_ghidra_type(component.getDataType(), worklist)
@@ -327,6 +263,9 @@ class TypeLib:
 
     def add_json_file(self, json_file: str, *, threads: int = 1) -> None:
         """Adds the info in a serialized (gzipped) JSON file to this TypeLib"""
+        if not os.path.exists(json_file):
+            return
+            
         other: t.Optional[t.Any] = None
         with open(json_file, "r") as other_file:
             other = TypeLibCodec.decode(other_file.read())
@@ -965,12 +904,16 @@ class Union(UDT):
         return cls(name=d["n"], members=d["m"], padding=d["p"])
 
     def _to_json(self) -> t.Dict[str, t.Any]:
-        return {
-            "T": 8,
+        encoded = {
+            "T": 7,
             "n": self.name,
             "m": [m._to_json() for m in self.members],
             "p": self.padding,
         }
+
+        if self.has_padding():
+            encoded["p"] = self.padding._to_json()
+        return encoded
 
     def __eq__(self, other: t.Any) -> bool:
         if isinstance(other, Union):

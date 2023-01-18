@@ -40,11 +40,11 @@ class Collector:
     def collect_variables(
         self, frsize: int, variables:Iterable,
     ) -> DefaultDict[Location, Set[Variable]]:
-        """Collects Variables from a list of tinfo_ts and adds their types to the type
+        """Collects Variables from a list of HighSymbols and adds their types to the type
         library."""
         collected_vars: DefaultDict[Location, Set[Variable]] = defaultdict(set)
         for v in variables:
-            if v.getName() == "" or not v.isValid():
+            if v.getName() == "":
                 continue
 
             # Add all types to the typelib
@@ -52,19 +52,15 @@ class Collector:
             typ: TypeInfo = TypeLib.parse_ghidra_type(v.getDataType())
 
             loc: Optional[Location] = None
-            if v.isStackVariable():
-                # TODO I don't need to modify this offset right?
-                # corrected = v.getStackOffset() - stkoff_delta
-                # offset = frsize - corrected
-                assert isinstance(v.getStackOffset(), int), "this should be an int"
-                loc = Stack(v.getStackOffset())
-            if v.isRegisterVariable():
-                loc = Register(v.getRegister().getName())
+            storage = v.getStorage()
+
+            if storage.isStackStorage():
+                loc = Stack(storage.getStackOffset())
+            if storage.isRegisterStorage():
+                loc = Register(storage.getRegister().getName())
             if loc is not None:
-                # TODO How do I find the user info 
-                # going to make everything user for now
                 collected_vars[loc].add(
-                    Variable(typ=typ, name=v.getName(), user=True)
+                    Variable(typ=typ, name=v.getName(), user=False)
                 )
         return collected_vars
 

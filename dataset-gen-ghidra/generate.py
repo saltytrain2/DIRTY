@@ -13,6 +13,8 @@ from tqdm import tqdm
 from multiprocessing import Pool
 from typing import Iterable, Tuple
 
+from elftools.elf.elffile import ELFFile
+
 class Runner(object):
     file_dir = os.path.dirname(os.path.abspath(__file__))
     COLLECT = os.path.join(file_dir, "decompiler", "debug.py")
@@ -102,7 +104,7 @@ class Runner(object):
         
         ghidracall = [self.ghidra, path_to_dir, temp_dir, '-import', file_name, 
                       '-postScript', script_name, "-scriptPath", script_dir,
-                      '-max-cpu', "2", "-analysisTimeoutPerFile", str(timeout - 40), '-deleteProject']
+                      '-max-cpu', "3", "-analysisTimeoutPerFile", str(timeout - 30), '-deleteProject']
         # idacall = [self.ida, "-B", f"-S{script}", file_name]
         output = ""
         try:
@@ -118,6 +120,25 @@ class Runner(object):
             # subprocess.call(["rm", "-f", f"{file_name}.i64"])
         # if self.verbose:
         #     print(output.decode("unicode_escape"))
+
+    def extract_dwarf_var_names(self, filepath:str) -> set:
+        variable_names = set()
+        with open(filepath, 'rb') as f:
+            elffile = ELFFile(f)
+
+            if not elffile.has_dwarf_info():
+                return {}
+            
+            dwarfinfo = elffile.get_dwarf_info()
+            for CU in dwarfinfo.iter_CUs():
+                for DIE in CU.iter_DIEs():
+                    if not (DIE.tag == "DW_TAG_variable" or DIE.tag == "DW_TAG_formal_parameter"):
+                        continue
+                        
+                    variable_names.add(DIE.attributes["DW_AT_name"])
+            
+            return variable_names
+            pass
 
     def run_one(self, args: Tuple[str, str]) -> None:
         path, binary = args
@@ -138,7 +159,7 @@ class Runner(object):
                 # Try stripping first, if it fails return
                 subprocess.call(["cp", file_path, stripped.name])
                 try:
-                    subprocess.call(["strip", "--strip-debug", stripped.name])
+                    subprocess.call(["strip", "--strip-unneeded", stripped.name])
                 except subprocess.CalledProcessError:
                     if self.verbose:
                         print(f"Could not strip {prefix}, skipping.")
@@ -158,10 +179,11 @@ class Runner(object):
                     # Collect from original
                     subprocess.check_output(["cp", file_path, orig.name])
                     # Timeout after 30s for the collect run
+                    #var_set = self.extract_dwarf_var_names(os.path.join(path, orig.name))
                     self.run_decompiler(new_env, path, os.path.join(path, orig.name), self.COLLECT, timeout=120)
                 # Dump trees
                 self.run_decompiler(
-                    new_env, path, os.path.join(path, stripped.name), self.DUMP_TREES, timeout=120
+                    new_env, path, os.path.join(path, stripped.name), self.DUMP_TREES, timeout=150
                 )
 
     def run(self):
@@ -187,14 +209,14 @@ def main():
         "--ghidra",
         metavar="GHIDRA",
         help='location of the analyzeHeadless ghidra binary',
-        default='/isis/home/caok4/ghidra_10.1.4_PUBLIC/support/analyzeHeadless'
+        default='/home/caok4/ghidra_10.1.4_PUBLIC/support/analyzeHeadless'
     )
     parser.add_argument(
         '-t',
         '--num-threads',
         metavar='NUM_THREADS',
         help='number of threads to use',
-        default=4,
+        default=27,
         type=int
     )
     parser.add_argument(

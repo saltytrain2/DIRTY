@@ -5,7 +5,7 @@ Usage:
 
 Options:
     -h --help                  Show this screen.
-    --max=<int>                max dataset size [default: 10000]
+    --max=<int>                max dataset size [default: -1]
     --shard-size=<int>         shard size [default: 5000]
     --test-file=<file>         test file
     --no-filtering             do not filter files
@@ -28,10 +28,10 @@ import ujson as json
 from docopt import docopt
 from tqdm import tqdm
 
-from dataset import Example
-from ghidra_types import TypeInfo, TypeLib, TypeLibCodec
-from ghidra_function import CollectedFunction
-from code_processing import canonicalize_code
+from utils.dataset import Example
+from utils.ghidra_types import TypeInfo, TypeLib, TypeLibCodec
+from utils.ghidra_function import CollectedFunction
+from utils.code_processing import canonicalize_code
 
 all_functions = dict()  # indexed by binaries
 
@@ -106,7 +106,7 @@ def main(args):
             s = s.strip()
             if s.endswith(".gz"):
                 input_fnames.append(s)
-            if len(input_fnames) >= max_files:
+            if max_files != -1 and len(input_fnames) >= max_files:
                 break
     shard_size = int(args["--shard-size"])
 
@@ -118,7 +118,7 @@ def main(args):
     os.system(f"mkdir -p {tgt_folder}")
     os.system(f"mkdir -p {tgt_folder}/files")
     os.system(f"mkdir -p {tgt_folder}/types")
-    num_workers = 4
+    num_workers = 16
 
     valid_example_count = 0
 

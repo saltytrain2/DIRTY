@@ -10,10 +10,10 @@ import webdataset as wds
 from torch.nn.utils.rnn import pad_sequence
 from tqdm import tqdm
 
-from code_processing import tokenize_raw_code
-from ghidra_function import CollectedFunction, Function
-from ghidra_variable import Location, Variable, location_from_json_key, Register, Stack
-from ghidra_types import Struct, TypeLibCodec, TypeLib, UDT, TypeInfo, Disappear
+from utils.code_processing import tokenize_raw_code
+from utils.ghidra_function import CollectedFunction, Function
+from utils.ghidra_variable import Location, Variable, location_from_json_key, Register, Stack
+from utils.ghidra_types import Struct, TypeLibCodec, TypeLib, UDT, TypeInfo, Disappear
 
 
 class Example:
@@ -80,7 +80,7 @@ class Example:
         target = {**cf.debug.local_vars, **cf.debug.arguments}
 
         # Remove variables that overlap on memory or don't appear in the code tokens
-        source_code_tokens_set = set(code_tokens)
+        source_code_tokens_set = set(code_tokens[code_tokens.index("{"):])
         #target_code_tokens_set = set(tokenize_raw_code(cf.debug.raw_code))
 
         source = Example.filter(source, source_code_tokens_set)
@@ -106,7 +106,7 @@ class Example:
             source,
             target,
             kwargs["binary_file"],
-            valid=name == cf.debug.name and source,
+            valid=name == cf.debug.name and source and "halt_baddata" not in source_code_tokens_set,
             raw_code=raw_code,
         )
 
@@ -161,7 +161,7 @@ class Dataset(wds.Dataset):
         if config:
             # annotate example for training
             from utils.vocab import Vocab
-
+            print(config["vocab_file"])
             self.vocab = Vocab.load(config["vocab_file"])
             with open(config["typelib_file"]) as type_f:
                 self.typelib = TypeLibCodec.decode(type_f.read())

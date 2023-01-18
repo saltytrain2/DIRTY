@@ -20,8 +20,8 @@ import json
 import sentencepiece as spm
 from tqdm import tqdm
 
-from ghidra_types import TypeLibCodec
-from ghidra_variable import Register
+from utils.ghidra_types import TypeLibCodec
+from utils.ghidra_variable import Register
 
 
 SAME_VARIABLE_TOKEN = "<IDENTITY>"
@@ -36,6 +36,7 @@ class VocabEntry:
 
         self.subtoken_model_path = subtoken_model_path
         if subtoken_model_path:
+            print(subtoken_model_path)
             self.subtoken_model = spm.SentencePieceProcessor()
             self.subtoken_model.load(subtoken_model_path)
 
@@ -103,6 +104,7 @@ class VocabEntry:
     @classmethod
     def load(cls, path=None, params=None):
         if path:
+            print(path)
             params = json.load(open(path, "r"))
         else:
             assert params, "Params must be given when path is None!"

@@ -44,32 +44,39 @@ class CollectDecompiler(Collector):
         print("Collecting vars and types.")
 
         decomp = DecompInterface()
+        decomp.toggleSyntaxTree(False)
         decomp.openProgram(currentProgram)
 
         for f in currentProgram.getListing().getFunctions(True):
             # Decompile
             decomp_results = decomp.decompileFunction(f, 30, None)
+            f = decomp_results.getFunction()
 
             if not decomp_results.decompileCompleted():
                 continue
 
             if decomp_results.getErrorMessage() != "":
                 continue
+            
+            high_func = decomp_results.getHighFunction()
+            lsm = high_func.getLocalSymbolMap()
+            symbols = [v for v in lsm.getSymbols()]
+            func_return = high_func.getFunctionPrototype().getReturnType()
 
             name:str = f.getName()
-            self.type_lib.add_ghidra_type(f.getReturnType())
-            return_type = TypeLib.parse_ghidra_type(f.getReturnType())
+            self.type_lib.add_ghidra_type(func_return)
+            return_type = TypeLib.parse_ghidra_type(func_return)
 
             arguments = self.collect_variables(
-                f.getStackFrame().getFrameSize(), f.getParameters()
+                f.getStackFrame().getFrameSize(), [v for v in symbols if v.isParameter()],
             )
             local_vars = self.collect_variables(
                 f.getStackFrame().getFrameSize(),
-                # [v for v in f.getLocalVariables()],
-                f.getLocalVariables()
+                [v for v in symbols if not v.isParameter()],
             )
 
-            raw_code = decomp_results.getDecompiledFunction().getC()
+            #raw_code = decomp_results.getDecompiledFunction().getC()
+            raw_code = decomp_results.getCCodeMarkup().toString()
 
             decompiler = Function(
                 ast=None,
@@ -77,7 +84,7 @@ class CollectDecompiler(Collector):
                 return_type=return_type,
                 arguments=arguments,
                 local_vars=local_vars,
-                raw_code=raw_code
+                raw_code=raw_code,
             )
             self.functions.append(
                 CollectedFunction(
