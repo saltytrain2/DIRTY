@@ -59,7 +59,6 @@ def struct_body_in_train_acc(preds, results, test_metas):
     )
     return mask_acc(preds, results, mask)
 
-
 def struct_body_not_in_train_acc(preds, results, test_metas):
     mask = np.array(
         [
@@ -69,6 +68,103 @@ def struct_body_not_in_train_acc(preds, results, test_metas):
     )
     return mask_acc(preds, results, mask)
 
+def no_disappear_acc(preds, results, test_metas):
+    no_disappear_mask = np.array([not test_meta["is_disappear"] for test_meta in test_metas])
+    return mask_acc(preds, results, no_disappear_mask)
+
+
+def no_disappear_body_in_train_acc(preds, results, test_metas):
+    mask = np.array(
+        [
+            not test_meta["is_disappear"] and test_meta["function_body_in_train"]
+            for test_meta in test_metas
+        ]
+    )
+    return mask_acc(preds, results, mask)
+
+def no_disappear_body_not_in_train_acc(preds, results, test_metas):
+    mask = np.array(
+        [
+            not test_meta["is_disappear"] and not test_meta["function_body_in_train"]
+            for test_meta in test_metas
+        ]
+    )
+    return mask_acc(preds, results, mask)
+
+def only_disappear_acc(preds, results, test_metas):
+    no_disappear_mask = np.array([test_meta["is_disappear"] for test_meta in test_metas])
+    return mask_acc(preds, results, no_disappear_mask)
+
+
+def only_disappear_body_in_train_acc(preds, results, test_metas):
+    mask = np.array(
+        [
+            test_meta["is_disappear"] and test_meta["function_body_in_train"]
+            for test_meta in test_metas
+        ]
+    )
+    return mask_acc(preds, results, mask)
+
+def only_disappear_body_not_in_train_acc(preds, results, test_metas):
+    mask = np.array(
+        [
+            test_meta["is_disappear"] and not test_meta["function_body_in_train"]
+            for test_meta in test_metas
+        ]
+    )
+    return mask_acc(preds, results, mask)
+
+def func_all_disappear_acc(preds, results, test_metas):
+    mask = np.array(
+        [
+            test_meta["func_all_disappear"] for test_meta in test_metas
+        ]
+    )
+    return mask_acc(preds, results, mask)
+
+def func_all_disappear_body_in_train_acc(preds, results, test_metas):
+    mask = np.array(
+        [
+            test_meta["func_all_disappear"] and test_meta["function_body_in_train"]
+            for test_meta in test_metas
+        ]
+    )
+    return mask_acc(preds, results, mask)
+
+def func_all_disappear_body_not_in_train_acc(preds, results, test_metas):
+    mask = np.array(
+        [
+            test_meta["func_all_disappear"] and not test_meta["function_body_in_train"]
+            for test_meta in test_metas
+        ]
+    )
+    return mask_acc(preds, results, mask)
+
+def func_no_disappear_acc(preds, results, test_metas):
+    mask = np.array(
+        [
+            test_meta["func_no_disappear"] for test_meta in test_metas
+        ]
+    )
+    return mask_acc(preds, results, mask)
+
+def func_no_disappear_body_in_train_acc(preds, results, test_metas):
+    mask = np.array(
+        [
+            test_meta["func_no_disappear"] and test_meta["function_body_in_train"]
+            for test_meta in test_metas
+        ]
+    )
+    return mask_acc(preds, results, mask)
+
+def func_no_disappear_body_not_in_train_acc(preds, results, test_metas):
+    mask = np.array(
+        [
+            test_meta["func_no_disappear"] and not test_meta["function_body_in_train"]
+            for test_meta in test_metas
+        ]
+    )
+    return mask_acc(preds, results, mask)
 
 TYPE_METRICS = {
     "acc": acc,
@@ -77,19 +173,55 @@ TYPE_METRICS = {
     "struct_acc": struct_acc,
     "struct_body_in_train_acc": struct_body_in_train_acc,
     "struct_body_not_in_train_acc": struct_body_not_in_train_acc,
+    "no_disappear_acc": no_disappear_acc,
+    "no_disappear_body_in_train_acc": no_disappear_body_in_train_acc,
+    "no_disappear_body_not_in_train_acc": no_disappear_body_not_in_train_acc,
+    "only_disappear_acc": only_disappear_acc,
+    "only_disappear_body_in_train_acc": only_disappear_body_in_train_acc,
+    "only_disappear_body_not_int_train_acc": only_disappear_body_not_in_train_acc,
+    "func_no_disappear_acc": func_no_disappear_acc,
+    "func_no_disappear_body_in_train_acc": func_no_disappear_body_in_train_acc,
+    "func_no_disappear_body_not_int_train_acc": func_no_disappear_body_not_in_train_acc,
+    "func_all_disappear_acc": func_all_disappear_acc,
+    "func_all_disappear_body_in_train_acc": func_all_disappear_body_in_train_acc,
+    "func_all_disappear_body_not_int_train_acc": func_all_disappear_body_not_in_train_acc,
 }
 
 NAME_METRICS = {
     "accuracy": acc,
     "body_in_train_acc": body_in_train_acc,
     "body_not_in_train_acc": body_not_in_train_acc,
+    "no_disappear_acc": no_disappear_acc,
+    "no_disappear_body_in_train_acc": no_disappear_body_in_train_acc,
+    "no_disappear_body_not_in_train_acc": no_disappear_body_not_in_train_acc,
+    "only_disappear_acc": only_disappear_acc,
+    "only_disappear_body_in_train_acc": only_disappear_body_in_train_acc,
+    "only_disappear_body_not_int_train_acc": only_disappear_body_not_in_train_acc,
 }
 
 
 def evaluate(dataset, results, type_metrics, name_metrics):
     pred_names, ref_names, pred_types, ref_types = [], [], [], []
     test_meta_types, test_meta_names = [], []
+    examples_w_structs = []
+    num_functions, num_all_disappear, num_no_disappear = 0, 0, 0
     for example in tqdm(dataset):
+        # one example is one function: check if all variables are disappear or if all variables are actual variables
+        all_disappear = True
+        no_disappear = True
+
+        for tgt_type in example.tgt_var_types_str:
+            if dataset.dataset.vocab.types.id2word[dataset.dataset.vocab.types[tgt_type]] == "disappear":
+                no_disappear = False
+            else:
+                all_disappear = False
+
+        num_functions += 1
+        if all_disappear:
+            num_all_disappear += 1
+        if no_disappear:
+            num_no_disappear += 1
+
         for src_name, tgt_name, tgt_type in zip(
             example.src_var_names, example.tgt_var_names, example.tgt_var_types_str
         ):
@@ -104,6 +236,15 @@ def evaluate(dataset, results, type_metrics, name_metrics):
             test_meta["is_struct"] = dataset.dataset.vocab.types.id2word[
                 dataset.dataset.vocab.types[tgt_type]
             ].startswith("struct ")
+            if test_meta["is_struct"]:
+                examples_w_structs.append(example.binary)
+
+            test_meta["is_disappear"] = dataset.dataset.vocab.types.id2word[
+                dataset.dataset.vocab.types[tgt_type]
+            ].startswith("disappear")
+
+            test_meta["func_all_disappear"] = all_disappear
+            test_meta["func_no_disappear"] = no_disappear
             test_meta_types.append(test_meta)
             if src_name != tgt_name and tgt_name != "@@@@":
                 # only report need_rename
@@ -117,6 +258,33 @@ def evaluate(dataset, results, type_metrics, name_metrics):
                 test_meta_names.append(test_meta)
     pred_types = np.array(pred_types, dtype=object)
     ref_types = np.array(ref_types, dtype=object)
+
+    struct_counter = 0
+    disappear_counter = 0
+    for test_meta in test_meta_types:
+        struct_counter += 1 if test_meta["is_struct"] else 0
+        disappear_counter += 1 if test_meta["is_disappear"] else 0
+
+    with open("struct_files.txt", "w") as file:
+        for elem in examples_w_structs:
+            file.write(str(elem) + "\n")
+
+    wandb.log(
+        {
+            "total variables": len(test_meta_types),
+            "num structs": struct_counter,
+            "num disappear": disappear_counter
+        }
+    )
+
+    wandb.log(
+        {
+            "total examples:": num_functions,
+            "examples all disappear": num_all_disappear,
+            "examples no disappear": num_no_disappear
+        }
+    )
+    
     for metric_name, metric in type_metrics.items():
         wandb.log(
             {

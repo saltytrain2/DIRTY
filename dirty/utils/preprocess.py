@@ -43,7 +43,12 @@ def example_generator(json_str_list):
             json_dict = json.loads(json_str)
         except ValueError:
             continue
-        cf = CollectedFunction.from_json(json_dict)
+        try:
+            cf = CollectedFunction.from_json(json_dict)
+        except ValueError:
+            print(json_str, file=sys.stderr)
+            continue
+        
         example = Example.from_cf(
             cf, binary_file=meta, max_stack_length=1024, max_type_size=1024
         )

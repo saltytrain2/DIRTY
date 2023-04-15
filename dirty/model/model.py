@@ -7,7 +7,7 @@ import torch
 import torch.nn.functional as F
 from pytorch_lightning.metrics.functional import accuracy
 from utils.vocab import Vocab
-from utils.dire_types import TypeInfo, TypeLibCodec
+from utils.ghidra_types import TypeInfo, TypeLibCodec
 
 from model.encoder import Encoder
 from model.decoder import Decoder
@@ -199,6 +199,13 @@ class InterleaveDecodeModule(pl.LightningModule):
 
         return retype_loss, rename_loss
 
+    def get_unmasked_logits(self, context_encoding, input_dict, target_dict):
+        variable_type_logits, _ = self.decoder(context_encoding, target_dict)
+        variable_type_logits = variable_type_logits[target_dict["target_mask"]]
+        # mem_encoding = self.mem_encoder(input_dict)
+        # return self.mem_decoder(mem_encoding, target_dict) + variable_type_logits
+        return variable_type_logits.argmax(dim=1)
+
     def shared_eval_step(self, context_encoding, input_dict, target_dict, test=False):
         variable_type_logits, variable_name_logits = self.decoder(
             context_encoding, target_dict
@@ -316,6 +323,11 @@ class TypeReconstructionModel(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         return self._shared_eval_step(batch, batch_idx, test=True)
 
+    def get_unmasked_logits(self, batch):
+        input_dict, target_dict = batch
+        context_encoding = self.encoder(input_dict)
+        return self.interleave_module.get_unmasked_logits(context_encoding, input_dict, target_dict)
+
     def _shared_eval_step(
         self,
         batch: Tuple[Dict[str, Union[torch.Tensor, int]], Dict[str, torch.Tensor]],
@@ -427,7 +439,7 @@ class TypeReconstructionModel(pl.LightningModule):
             for num, test_meta in zip(target_num.tolist(), test_metas):
                 num_correct += all(preds[pos : pos + num] == targets[pos : pos + num])
                 pos += num
-                body_in_train_mask += [test_meta["function_body_in_train"]] * num
+                body_in_train_mask += [test_meta["function_body_sin_train"]] * num
                 name_in_train_mask += [test_meta["function_name_in_train"]] * num
             num_funcs += len(target_num)
         body_in_train_mask = torch.tensor(body_in_train_mask)

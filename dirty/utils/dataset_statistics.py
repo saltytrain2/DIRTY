@@ -9,6 +9,9 @@ import torch
 import webdataset as wds
 from tqdm import tqdm
 
+from utils.dataset import Dataset
+import _jsonnet
+
 
 def _file_iter_to_line_iter(jsonl_iter):
     for jsonl in jsonl_iter:
@@ -19,6 +22,12 @@ def _file_iter_to_line_iter(jsonl_iter):
             json_line = json.loads(line)
             json_line["binary"] = jsonl["__key__"]
             yield json_line
+
+# def load_data(config_file):
+#     config = json.loads(_jsonnet.evaluate_file(config_file))["data"]
+#     config["max_num_var"] = 1 << 30
+#     dataset = Dataset(config["test_file"], config)
+#     return dataset
 
 
 if __name__ == "__main__":
@@ -45,15 +54,35 @@ if __name__ == "__main__":
     # def name(example):
     #     return example["function"]
     body_in_train = []
+    num_functions = 0
+    num_structs = 0
+    num_disappear = 0
+
     for example in tqdm(dataset):
+        for var in example["target"]:
+            if example["target"][var]['t']['T'] == 6:
+                num_structs += 1
+            if example["target"][var]['t']['T'] == 10:
+                num_disappear += 1
+
         token_len.append(tokenlen(example))
         num_vars.append(num_var(example))
-        uniq_code.add(name(example) + "".join(example["code_tokens"]))
         uniq_binary.add(example["binary"][:64])
-        # body_in_train.append(example["test_meta"]["function_body_in_train"])
 
+        if name(example) + "".join(example["code_tokens"]) in uniq_code:
+            continue
+
+        num_functions += 1
+        uniq_code.add(name(example) + "".join(example["code_tokens"]))
+        
+        
+        #body_in_train.append(example["test_meta"]["function_body_in_train"])
+
+    print(f"num functions: {num_functions}")
+    print(f"num structs {num_structs}")
+    print(f"num disappear {num_disappear}")
     print(np.mean(token_len), np.median(token_len))
     print(np.mean(num_vars), np.median(num_vars))
     print(len(uniq_code))
     print(len(uniq_binary))
-    # print(np.mean(body_in_train))
+    print(np.mean(body_in_train))

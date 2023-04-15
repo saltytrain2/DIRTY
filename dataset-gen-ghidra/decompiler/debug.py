@@ -1,8 +1,11 @@
 import os
 import pickle
+from sys import argv
 
 from ghidra.app.decompiler import DecompInterface
 from ghidra.program.model.data import Undefined
+from ghidra.app.util.bin.format.dwarf4.next import DWARFImportOptions, DWARFProgram
+from ghidra.util.task import ConsoleTaskMonitor
 
 from collect import Collector
 from ghidra_function import Function
@@ -29,9 +32,14 @@ class CollectDebug(Collector):
 
         print("Collecting vars and types.")
         # `ea` is the start address of a single function
+        dwarf_options = DWARFImportOptions()
+        dwarf_options.setOutputDIEInfo(True)
+        monitor = ConsoleTaskMonitor()
+        dwarf_program = DWARFProgram(currentProgram, dwarf_options, monitor)
+
         decomp = DecompInterface()
         decomp.toggleSyntaxTree(False)
-        decomp.openProgram(currentProgram)
+        decomp.openProgram(dwarf_program.getGhidraProgram())
 
         # Ghidra separates Variables from their Data info, populate typelib first
         # for data in currentProgram.getListing().getDefinedData(True):
@@ -48,6 +56,7 @@ class CollectDebug(Collector):
                 continue
 
             # Function info
+            #all_var_names = pickle.load(open(getScriptArgs()[0], 'rb'))
             high_func = decomp_results.getHighFunction()
             lsm = high_func.getLocalSymbolMap()
             symbols = [v for v in lsm.getSymbols()]
@@ -57,11 +66,14 @@ class CollectDebug(Collector):
             self.type_lib.add_ghidra_type(func_return)
             return_type = TypeLib.parse_ghidra_type(func_return)
 
+            for symbol in symbols:
+                print(symbol.getDataType().getDescription())
+
             arguments = self.collect_variables(
-                f.getStackFrame().getFrameSize(), [v for v in symbols if v.isParameter() and not isinstance(v.getDataType(), Undefined.__pytype__)],
+                f.getStackFrame().getFrameSize(), [v for v in symbols if v.isParameter()] # and v.getName() in all_var_names],
             )
             local_vars = self.collect_variables(
-                f.getStackFrame().getFrameSize(), [v for v in symbols if not v.isParameter() and not isinstance(v.getDataType(), Undefined.__pytype__)],
+                f.getStackFrame().getFrameSize(), [v for v in symbols if not v.isParameter()] # and v.getName() in all_var_names],
             )
 
             raw_code = decomp_results.getCCodeMarkup().toString()

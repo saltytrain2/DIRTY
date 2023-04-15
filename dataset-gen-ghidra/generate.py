@@ -7,6 +7,7 @@ import signal
 import errno
 import hashlib
 import tempfile as tf
+import pickle
 
 
 from tqdm import tqdm
@@ -14,6 +15,7 @@ from multiprocessing import Pool
 from typing import Iterable, Tuple
 
 from elftools.elf.elffile import ELFFile
+from elftools.common.exceptions import ELFRelocationError
 
 class Runner(object):
     file_dir = os.path.dirname(os.path.abspath(__file__))
@@ -101,9 +103,10 @@ class Runner(object):
         script_dir = script[:(script.rfind("/"))]
         script_name = script.split("/")[-1]
         temp_dir = "__".join(file_name.split("/"))
-        
+        orig_file = file_name.split("/")[-1]
+
         ghidracall = [self.ghidra, path_to_dir, temp_dir, '-import', file_name, 
-                      '-postScript', script_name, "-scriptPath", script_dir,
+                      '-postScript', script_name, file_name + ".p", "-scriptPath", script_dir,
                       '-max-cpu', "3", "-analysisTimeoutPerFile", str(timeout - 30), '-deleteProject']
         # idacall = [self.ida, "-B", f"-S{script}", file_name]
         output = ""
@@ -122,21 +125,33 @@ class Runner(object):
         #     print(output.decode("unicode_escape"))
 
     def extract_dwarf_var_names(self, filepath:str) -> set:
+        """
+        Can't figure out how to extract debugging information in GHIDRA's interface, 
+        so this function extracts the debugging variable/parameters names to pass into
+        each ghidra call through a pickle file
+        """
         variable_names = set()
         with open(filepath, 'rb') as f:
             elffile = ELFFile(f)
-
             if not elffile.has_dwarf_info():
-                return {}
+                return set()
             
-            dwarfinfo = elffile.get_dwarf_info()
+            # for some reason, this is throwing an exception, give it if it does so
+            try:
+                dwarfinfo = elffile.get_dwarf_info()
+            except:
+                return set()
+
             for CU in dwarfinfo.iter_CUs():
                 for DIE in CU.iter_DIEs():
-                    if not (DIE.tag == "DW_TAG_variable" or DIE.tag == "DW_TAG_formal_parameter"):
+                    if DIE.tag != "DW_TAG_variable" and DIE.tag != "DW_TAG_formal_parameter":
                         continue
-                        
-                    variable_names.add(DIE.attributes["DW_AT_name"])
-            
+                    
+                    for attr in DIE.attributes.values():
+                        if attr.name == "DW_AT_name":
+                            variable_names.add(attr.value.decode())
+            print(variable_names)
+            #print(len(variable_names))
             return variable_names
             pass
 
@@ -179,12 +194,20 @@ class Runner(object):
                     # Collect from original
                     subprocess.check_output(["cp", file_path, orig.name])
                     # Timeout after 30s for the collect run
-                    #var_set = self.extract_dwarf_var_names(os.path.join(path, orig.name))
-                    self.run_decompiler(new_env, path, os.path.join(path, orig.name), self.COLLECT, timeout=120)
+                    var_set = self.extract_dwarf_var_names(os.path.join(path, orig.name))
+                    if not var_set:
+                        return
+                    pickle_file = os.path.join(path, orig.name) + ".p"
+                    pickle.dump(var_set, open(pickle_file, 'wb'))
+                    self.run_decompiler(new_env, path, os.path.join(path, orig.name), self.COLLECT, timeout=180)
+                    os.remove(pickle_file)
                 # Dump trees
+                pickle_file = os.path.join(path, stripped.name) + ".p"
+                pickle.dump(set(), open(pickle_file, 'wb'))
                 self.run_decompiler(
-                    new_env, path, os.path.join(path, stripped.name), self.DUMP_TREES, timeout=150
+                    new_env, path, os.path.join(path, stripped.name), self.DUMP_TREES, timeout=200
                 )
+                os.remove(pickle_file)
 
     def run(self):
         # File counts for progress output
@@ -216,7 +239,7 @@ def main():
         '--num-threads',
         metavar='NUM_THREADS',
         help='number of threads to use',
-        default=27,
+        default=28,
         type=int
     )
     parser.add_argument(

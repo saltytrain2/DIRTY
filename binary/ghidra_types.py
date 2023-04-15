@@ -194,7 +194,6 @@ class TypeLib:
             components = typ.getDefinedComponents()
             layout = []
             local_size = 0
-            print(f"{name} {typ.getNumDefinedComponents()}")
             for component in components:
                 component_name = component.getFieldName()
                 component_size = component.getLength()
@@ -214,7 +213,7 @@ class TypeLib:
         if isinstance(typ, (UnionDataType.__pytype__, UnionDB.__pytype__)):
             name = typ.getName()
             size = typ.getLength()
-            components = typ.getComponents()
+            components = typ.getDefinedComponents()
             members = []
             largest_size = 0
             for component in components:
@@ -940,7 +939,7 @@ class Union(UDT):
         return ret
 
     def tokenize(self) -> t.List[str]:
-        raise NotImplementedError
+        return  ["<union>", self.name if self.name is not None else ""] + [str(l) for l in self.members] + ["<eot>"]
         
 
 class Void(TypeInfo):

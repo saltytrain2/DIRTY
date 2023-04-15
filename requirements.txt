@@ -8,3 +8,5 @@ ujson==3.2.0
 wandb==0.10.12
 webdataset==0.1.40
 pyelftools==0.29
+pandas
+openpyxl
