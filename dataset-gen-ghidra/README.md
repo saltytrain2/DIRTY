@@ -3,54 +3,53 @@ Building A Corpus
 
 This directory contains the files needed to generate a corpus from a set of
 binaries containing debug information (i.e., compiled with `gcc -g`).
-
+As opposed to the original implementation, this directory utilizes the open-source
+[Ghidra decomciler](https://github.com/NationalSecurityAgency/ghidra), allowing reproduction of
+the original paper without having to buy an IDA Pro license.
+ 
 Prerequisites
 =============
 
-The current implementation takes the path to a directory of x86_64 binary
-files. The directory structure must be flat, and the binaries must be uniquely
-named: their names will be used as a prefix to the output files. My current
-strategy was to simply rename all of the binaries that I collected to their
-SHA-256 hash. I did this in my initial approach to filter out identical
-binaries, and kept them organized this way. I further broke the binaries down
-into sixteen directories, each holding all files that began with a particular
-hexadecimal digit. This made them much easier to work with.
+- A copy of the [Ghidra decompiler](https://github.com/NationalSecurityAgency/ghidra/releases) (tested on version 10.1.4)
+- Directory of binaries containing debug information
 
-A copy of Hex-Rays (and, implicitly, IDA Pro) is also required.
+
+## Binary Generation
+
+When writing our paper, the original DIRTY team were kind enough to provide the set of binaries they compiled to train their model. They generated their dataset by feeding [GHCC](https://github.com/huzecong/ghcc) a list of github repositories to clone and compile. Similar tools can be used to generate binaries. For our paper implementation, we selected a total size of approximately 160,000 binaries to generate our dataset. A randomly-sampled binary dataset of similar magnitude should be enough.
 
 Use
 ===
 
 Use is fairly simple, given a directory of binaries and an existing output
-directory, just run the [run_decompiler.py](run_decompiler.py) script with
+directory, just run the [generate.py](generate.py) script with
 Python 3:
-`python3 run_decompiler.py --ida /path/to/idat64 BINARIES_DIR OUTPUT_DIR`
+`python3 generate.py --ghidra PATH_TO_GHIDRA -t NUM_THREADS -n [NUM_FILES|None] -b BINARIES_DIR -o OUTPUT_DIR`
 
 This generates a `.jsonl` file for each binary in `BINARIES_DIR`. The file is in
 the [JSON Lines](http://jsonlines.org) format, and each entry corresponds to a
-function in the binary.
+function found in the binary. 
 
-How It Works
-============
-
-For each binary, there are two stages of decompilation. First, each binary is
-decompiled and the decompiler is allowed to use DWARF debugging information to
-generate pseudocode using the original, human-written variable names. This stage
-collects information about the addresses in the binary corresponding to each
-variable. This information is passed to the second stage, which decompiles the
-same binary with its debugging information stripped, and maps the original
-variable names to variables that correspond to the same addresses.
 
 Output Format
 =============
 
 Each line in the output is a JSON value corresponding to a function in the
 binary. At the moment there are three fields:
-* `function`: The name of the function.
-* `raw_code`: The pseudocode output by the decompiler, with placeholders for
-variable names. Variable names are replaced with a token of the format
-`@@VAR_[id]@@[old_name]@@[new_name]`, where `[id]` identifies all positions of
-the same variable, `[old_name]` is the name assigned by the decompiler when it
-does not have debugging information, and `[new_name]` is the name mined from the
-debugging information contained in the binary.
-* `ast` holds a JSON-serialized representation of the internal Hex-Rays AST.
+* `e`: Address of the function
+* `b`: json representation of the decompiled function without debug information. Represents how functions decompile in the real world.
+       Contains the following fields:
+    * `t`: AST representation of the function. Unused.
+    * `n`: Name of the function.
+    * `r`: json representation of the function's return type. See `binary/ghidra_types` for more information.
+    * `a`: json representation of the function's arguments/parameters.
+    * `l`: json representation of the function's local variables.
+    * `c`: the raw code produced by ghidra. All variables are represented as `@@id@@` for easier postprocessing.
+* `c`: json representation of the decompiled function with debug information. Represents the ground truth function typing information.
+       Same fields as above.
+
+Preprocessing
+=============
+
+After generating the dataset, the dataset is ready for preprocessing with the utility scripts in the `dirty` directory. This step maps variables
+in functions decompiled without debug information to variables in functions with debug information to create testing samples for the model to train on.
