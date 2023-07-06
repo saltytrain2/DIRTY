@@ -6,12 +6,13 @@ This repository hosts the code used to replicate the paper [Augmenting Decompile
 It is a fork of the [original DIRTY implementation](https://github.com/CMUSTRUDEL/DIRTY) written by Chen et. al.
 While most of the model code remains identical, we add support for generating a training dataset with the [Ghidra decompiler](https://github.com/NationalSecurityAgency/ghidra), allowing researchers without an IDA Pro license to train their own DIRTY model.
 The original README provides clear instructions on how to download and run their pre-trained DIRTY model, but the README's instructions are slightly unclear when describing how to train your own model.
-This README covers all the steps necessary to train a DIRTY model from scratch.
+This README explicitly covers all the steps necessary to train a DIRTY model from scratch.
 
 ## Requirements
 
 - Linux with Python 3.6/3.7/3.8
 - [PyTorch ≥ 1.5.1](https://pytorch.org/)
+- [Ghidrathon 1.0.0](https://github.com/mandiant/Ghidrathon)
 - `pip install -r requirements.txt`
 
 ## Training a DIRTY model
@@ -39,7 +40,7 @@ We also need to build a vocabulary of tokens that the model will understand
 
 ```bash
 # inside the `dirty` directory
-python3 -m utils.vocab [-h] [options] TRAIN_FILES_TAR PATH_TO_TYPELIB_JSON TARGET_DIRECTORY
+python3 -m utils.vocab [-h] [options] TRAIN_FILES_TAR PATH_TO_TYPELIB_JSON TARGET_DIRECTORY/vocab.bpe10000
 ```
 
 This script generates vocabulary files located in `TARGET_DIRECTORY`. It is recommended to prefix the vocab files with `vocab.bpe10000` to match the expected vocabulary filenames in the model config files.
@@ -52,4 +53,4 @@ mkdir -p data1/
 mv PATH_TO_TRAIN_SHARDS_TAR PATH_TO_DEV_TAR PATH_TO_TEST_TAR PATH_TO_VOCAB_BPE10000 data1/
 ```
 
-We can now train our own DIRTY model and test its performance. Follow the steps outlined under the Quick Start section of the [original README](https://github.com/CMUSTRUDEL/DIRTY/blob/main/README.md)
+We can now train our own DIRTY model and test its performance. Follow the steps starting at the [Train DIRTY section of the original README](https://github.com/CMUSTRUDEL/DIRTY/blob/main/README.md#train-dirty)
