@@ -232,7 +232,7 @@ def main():
         "--ghidra",
         metavar="GHIDRA",
         help='location of the analyzeHeadless ghidra binary',
-        default='/home/caok4/ghidra_10.1.4_PUBLIC/support/analyzeHeadless'
+        default='~/ghidra_10.1.4_PUBLIC/support/analyzeHeadless'
     )
     parser.add_argument(
         '-t',
