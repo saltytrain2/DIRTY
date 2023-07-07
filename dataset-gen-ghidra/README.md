@@ -1,8 +1,7 @@
 Building A Corpus
 =================
 
-This directory contains the files needed to generate a corpus from a set of
-binaries containing debug information (i.e., compiled with `gcc -g`).
+This directory contains the scripts necessary to generate a dataset for the DIRTY model.
 As opposed to the original implementation, this directory utilizes the open-source
 [Ghidra decompiler](https://github.com/NationalSecurityAgency/ghidra), allowing reproduction of
 the original paper without having to buy an IDA Pro license.
@@ -18,14 +17,9 @@ Prerequisites
 
 When writing our paper, the original DIRTY team were kind enough to provide the set of binaries they compiled to train their model. They generated their dataset by feeding [GHCC](https://github.com/huzecong/ghcc) a list of github repositories to clone and compile. Similar tools can be used to generate binaries. For our paper implementation, we selected a total size of approximately 160,000 binaries to generate our dataset. A randomly-sampled binary dataset of similar magnitude should be enough.
 
-We will release our unpreprocessed dataset when we find a suitable host platform.
-
 Use
 ===
-
-Use is fairly simple, given a directory of binaries and an existing output
-directory, just run the [generate.py](generate.py) script with
-Python 3:
+To generate the dataset, run the [generate.py](generate.py) script:
 `python3 generate.py --ghidra PATH_TO_GHIDRA -t NUM_THREADS -n [NUM_FILES|None] -b BINARIES_DIR -o OUTPUT_DIR`
 
 This script creates a `bins/` and `types/` directory in `OUTPUT_DIR` and generates a `.jsonl` file in both directories for each binary in `BINARIES_DIR`.
@@ -57,7 +51,8 @@ Debug Decompilation Filtering
 =============================
 
 The original DIRTY authors were hesitant to port their implementation to Ghidra because Ghidra failed more often in recovering original source types when provided debug information compared to IDA Pro.
-While we don't directly improve on Ghidra's ability to 
+While we don't directly improve on Ghidra's ability to recover original source types, we work around this limitation by excluding variables who's name do not map to a valid name in the DWARF debug section.
+This additional filtering ensures that the generated ground truth will contain no decompiler-generated names or types.
 
 Preprocessing
 =============
