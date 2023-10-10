@@ -12,7 +12,7 @@ This README explicitly covers all the steps necessary to train a DIRTY model fro
 
 - Linux with Python 3.6/3.7/3.8
 - [PyTorch ≥ 1.5.1](https://pytorch.org/)
-- [Ghidrathon 1.0.0](https://github.com/mandiant/Ghidrathon)
+- [Ghidrathon 3.0.1](https://github.com/mandiant/Ghidrathon)
 - `pip install -r requirements.txt`
 
 ## Training a DIRTY model
