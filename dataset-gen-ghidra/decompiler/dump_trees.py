@@ -45,9 +45,9 @@ class CollectDecompiler(Collector):
 
         decomp = DecompInterface()
         decomp.toggleSyntaxTree(False)
-        decomp.openProgram(currentProgram)
+        decomp.openProgram(currentProgram())
 
-        for f in currentProgram.getListing().getFunctions(True):
+        for f in currentProgram().getListing().getFunctions(True):
             # Decompile
             decomp_results = decomp.decompileFunction(f, 30, None)
             f = decomp_results.getFunction()
