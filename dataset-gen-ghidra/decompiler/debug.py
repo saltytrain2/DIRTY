@@ -35,17 +35,17 @@ class CollectDebug(Collector):
         dwarf_options = DWARFImportOptions()
         dwarf_options.setOutputDIEInfo(True)
         monitor = ConsoleTaskMonitor()
-        dwarf_program = DWARFProgram(currentProgram, dwarf_options, monitor)
+        dwarf_program = DWARFProgram(currentProgram(), dwarf_options, monitor)
 
         decomp = DecompInterface()
         decomp.toggleSyntaxTree(False)
         decomp.openProgram(dwarf_program.getGhidraProgram())
 
         # Ghidra separates Variables from their Data info, populate typelib first
-        # for data in currentProgram.getListing().getDefinedData(True):
+        # for data in currentProgram().getListing().getDefinedData(True):
         #     self.type_lib.add_ghidra_type(data)
 
-        for f in currentProgram.getListing().getFunctions(True):
+        for f in currentProgram().getListing().getFunctions(True):
             # Decompile
             decomp_results = decomp.decompileFunction(f, 30, None)
 
