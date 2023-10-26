@@ -439,7 +439,7 @@ class TypeReconstructionModel(pl.LightningModule):
             for num, test_meta in zip(target_num.tolist(), test_metas):
                 num_correct += all(preds[pos : pos + num] == targets[pos : pos + num])
                 pos += num
-                body_in_train_mask += [test_meta["function_body_sin_train"]] * num
+                body_in_train_mask += [test_meta["function_body_in_train"]] * num
                 name_in_train_mask += [test_meta["function_name_in_train"]] * num
             num_funcs += len(target_num)
         body_in_train_mask = torch.tensor(body_in_train_mask)
