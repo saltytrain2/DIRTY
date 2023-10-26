@@ -5,7 +5,7 @@ pygments==2.6.1
 pytorch-lightning==1.0.8
 sentencepiece==0.1.91
 ujson==3.2.0
-wandb==0.10.12
+wandb
 webdataset==0.1.40
 pyelftools==0.29
 pandas
