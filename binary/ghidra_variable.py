@@ -30,7 +30,7 @@ class Register(Location):
         self.name = name
 
     def json_key(self):
-        return self.name
+        return f"r{self.name}"
 
     def __eq__(self, other: Any) -> bool:
         return isinstance(other, Register) and self.name == other.name
@@ -68,8 +68,12 @@ def location_from_json_key(key: str) -> "Location":
     """Hacky way to return a location from a JSON key"""
     if key.startswith("s"):
         return Stack(int(key[1:]))
-    else:
+    elif key.startswith("r"):
         return Register(key[1:])
+    # ejs changed the json_key for Register to start with r.  But he doesn't
+    # feel like regenerating the data.
+    else:
+        return Register(key)
 
 class Variable:
     """A variable
