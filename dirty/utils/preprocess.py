@@ -129,15 +129,15 @@ def main(args):
 
     print("loading examples")
     with multiprocessing.Pool(num_workers) as pool:
-        json_iter = tqdm(pool.imap(
+        json_iter = pool.imap_unordered(
             json_line_reader,
             ((input_folder, fname) for fname in input_fnames),
             chunksize=64,
-        ), desc="json line reader", total=len(input_fnames))
+        )
 
-        example_iter = tqdm(pool.imap_unordered(example_generator, json_iter, chunksize=64), desc="example generation")
+        example_iter = pool.imap_unordered(example_generator, json_iter, chunksize=64)
 
-        for examples in tqdm(example_iter, desc="output"):
+        for examples in tqdm(example_iter, desc="Writing output", total=len(input_fnames)):
             if not examples:
                 continue
             json_file_name = examples[0].binary_file["file_name"].split("/")[-1]
