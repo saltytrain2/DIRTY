@@ -10,3 +10,4 @@ webdataset==0.1.40
 pyelftools==0.29
 pandas
 openpyxl
+jsonlines
