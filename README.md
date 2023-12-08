@@ -40,7 +40,7 @@ We also need to build a vocabulary of tokens that the model will understand
 
 ```bash
 # inside the `dirty` directory
-python3 -m utils.vocab [-h] [options] TRAIN_FILES_TAR PATH_TO_TYPELIB_JSON TARGET_DIRECTORY/vocab.bpe10000
+python3 -m utils.vocab [-h] --use-bpe [options] TRAIN_FILES_TAR PATH_TO_TYPELIB_JSON TARGET_DIRECTORY/vocab.bpe10000
 ```
 
 This script generates vocabulary files located in `TARGET_DIRECTORY`. It is recommended to prefix the vocab files with `vocab.bpe10000` to match the expected vocabulary filenames in the model config files.
