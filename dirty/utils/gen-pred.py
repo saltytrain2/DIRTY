@@ -1,4 +1,4 @@
-# This is a script to generate the pred-mt-ref.json file used by mk-visualize.py
+# This is a script to generate the pred-mt-ref.json file used by prepare_vis.py
 # script for the DIRTY explorer web interface.
 
 import argparse
@@ -26,10 +26,10 @@ if __name__ == "__main__":
         binary = e.binary
         func = e.name
         body_in_train = e.test_meta['function_body_in_train']
-        d[binary][func] = []
+        d[binary][func] = {}
 
-        for name, typ in zip(e.tgt_var_names, e.tgt_var_types_str):
-            d[binary][func].append((name, typ, body_in_train))
+        for srcname, tgtname, tgttyp in zip(e.src_var_names, e.tgt_var_names, e.tgt_var_types_str):
+            d[binary][func][srcname[2:-2]] = (tgtname, tgttyp, body_in_train)
 
     open(args.output_file, "w").write(json.dumps(d, indent=2))
 
