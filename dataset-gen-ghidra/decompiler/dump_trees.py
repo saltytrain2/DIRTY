@@ -48,6 +48,10 @@ class CollectDecompiler(Collector):
         decomp.openProgram(currentProgram())
 
         for f in currentProgram().getListing().getFunctions(True):
+
+            if f.isThunk():
+                continue
+
             # Decompile
             decomp_results = decomp.decompileFunction(f, 30, None)
             f = decomp_results.getFunction()

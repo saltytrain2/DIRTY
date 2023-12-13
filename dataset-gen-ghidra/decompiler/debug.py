@@ -46,6 +46,10 @@ class CollectDebug(Collector):
         #     self.type_lib.add_ghidra_type(data)
 
         for f in currentProgram().getListing().getFunctions(True):
+
+            if f.isThunk():
+                continue
+
             # Decompile
             decomp_results = decomp.decompileFunction(f, 30, None)
 
