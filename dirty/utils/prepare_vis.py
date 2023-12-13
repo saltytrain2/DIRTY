@@ -124,6 +124,8 @@ def main(args):
     binary, func_name = func
     for src_name in pred[binary][func_name]:
         print(f"{binary} {func_name} {src_name}")
+        assert src_name in pred[binary][func_name], "pred"
+        assert src_name in ref[binary][func_name], f"Unable to find src_name {src_name} in ref {binary} {func_name}. ref keys: {ref[binary][func_name].keys()} pred keys: {pred[binary][func_name].keys()}"
         (src_type, src_name_pred), (tgt_name, tgt_type, body_in_train) = pred[binary][func_name][src_name], ref[binary][func_name][src_name]
         info["body_in_train"] = body_in_train
         if tgt_type.startswith("struc") or not only_struct:
@@ -151,9 +153,11 @@ def sample(all_funcs, num, pred, ref, only_not_in_train=False, only_struct=False
                 has_struc = True
         if only_struct and not has_struc:
             valid = False
-        valid &= os.path.exists(os.path.join("/home/jlacomis/direoutput-new/bins", f"{binary}_{binary}.jsonl.gz"))
+        valid = os.path.exists(os.path.join("/home/jlacomis/direoutput-new/bins", f"{binary}_{binary}.jsonl.gz"))
         if valid:
             ret.append((binary, func_name))
+        else:
+            print(f"missing {binary} {func_name}")
     return ret
 
 
