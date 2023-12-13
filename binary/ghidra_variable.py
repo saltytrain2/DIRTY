@@ -73,7 +73,7 @@ def location_from_json_key(key: str) -> "Location":
     # ejs changed the json_key for Register to start with r.  But he doesn't
     # feel like regenerating the data.
     else:
-        return Register(key)
+        assert False
 
 class Variable:
     """A variable
