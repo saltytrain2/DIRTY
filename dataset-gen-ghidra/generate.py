@@ -174,7 +174,7 @@ class Runner(object):
                 # Try stripping first, if it fails return
                 subprocess.call(["cp", file_path, stripped.name])
                 try:
-                    subprocess.call(["strip", "--strip-unneeded", stripped.name])
+                    subprocess.call(["strip", stripped.name])
                 except subprocess.CalledProcessError:
                     if self.verbose:
                         print(f"Could not strip {prefix}, skipping.")
