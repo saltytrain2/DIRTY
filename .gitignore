@@ -141,3 +141,7 @@ cython_debug/
 *.c
 
 exp_runs/
+
+# wandb
+dirty/wandb/
+dirty/multitask-greedy.xfmr.jsonnet
