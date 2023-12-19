@@ -106,7 +106,7 @@ class Example:
             source,
             target,
             kwargs["binary_file"],
-            valid=name == cf.debug.name and source and "halt_baddata" not in source_code_tokens_set,
+            valid=source and "halt_baddata" not in source_code_tokens_set,
             raw_code=raw_code,
         )
 
