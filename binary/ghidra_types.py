@@ -174,7 +174,7 @@ class TypeLib:
             return
 
         if isinstance(typ, (PointerDataType.__pytype__, PointerDB.__pytype__)):
-            return Pointer(typ.getName())
+            return Pointer(typ.getDataType().getName())
         if isinstance(typ, (ArrayDataType.__pytype__, ArrayDB.__pytype__)):
             # To get array type info, first create an
             # array_type_data_t then call get_array_details to
