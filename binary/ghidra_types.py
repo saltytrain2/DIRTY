@@ -241,12 +241,19 @@ class TypeLib:
         worklist.add(typ.getName())
         new_type: TypeInfo = self.parse_ghidra_type(typ)
         # If this type isn't a duplicate, break down the subtypes, if any exists
-        if not self._data[new_type.size].add(new_type) and isinstance(typ, (StructureDataType.__pytype__, UnionDataType.__pytype__, StructureDB.__pytype__, UnionDB.__pytype__)):
-            components = typ.getComponents()
-            for component in components:
-                self.add_ghidra_type(component.getDataType(), worklist)
-            # for i in range(num_components):
-            #     self.add_ghidra_type(type.getComponent(i), worklist)
+        if self._data[new_type.size].add(new_type):
+            # Type already exists
+            pass
+        else:
+            subtypes = None
+            if isinstance(typ, (StructureDataType.__pytype__, UnionDataType.__pytype__)):
+                subtypes = typ.getComponents()
+            elif isinstance(typ, (PointerDataType.__pytype__, ArrayDataType.__pytype__)):
+                subtypes = [typ.getDataType()]
+
+            if subtypes is not None:
+                for subtype in subtypes:
+                    self.add_ghidra_type(subtype, worklist)
 
     def add_entry_list(self, size: int, entries: "TypeLib.EntryList") -> None:
         """Add an entry list of items of size 'size'"""
