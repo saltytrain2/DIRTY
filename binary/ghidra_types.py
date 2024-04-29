@@ -182,7 +182,7 @@ class TypeLib:
             # pattern.
             nelements = typ.getNumElements()
             element_size = typ.getElementLength()
-            element_type = typ.getName()
+            element_type = typ.getDataType().getName()
             return Array(
                 nelements=nelements,
                 element_size=element_size,
