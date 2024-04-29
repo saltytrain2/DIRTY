@@ -246,9 +246,9 @@ class TypeLib:
             pass
         else:
             subtypes = None
-            if isinstance(typ, (StructureDataType.__pytype__, UnionDataType.__pytype__)):
-                subtypes = typ.getComponents()
-            elif isinstance(typ, (PointerDataType.__pytype__, ArrayDataType.__pytype__)):
+            if isinstance(typ, (StructureDataType.__pytype__, StructureDB.__pytype__, UnionDataType.__pytype__, UnionDB.__pytype__)):
+                subtypes = [t.getDataType() for t in typ.getComponents()]
+            elif isinstance(typ, (PointerDataType.__pytype__, PointerDB.__pytype__, ArrayDataType.__pytype__, ArrayDB.__pytype__)):
                 subtypes = [typ.getDataType()]
 
             if subtypes is not None:
