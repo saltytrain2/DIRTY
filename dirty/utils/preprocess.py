@@ -181,12 +181,12 @@ def main(args):
     test_files_set = set(test_files)
     train_files = [fname for fname in all_files if fname not in test_files_set]
 
-    if dev_file_num == 0:
+    if dev_file_num == 0 and not test_file:
         dev_file_num = int(len(train_files) * 0.1)
 
     np.random.shuffle(train_files)
-    dev_files = train_files[-dev_file_num:]
-    train_files = train_files[:-dev_file_num]
+    dev_files = train_files[-dev_file_num:] if dev_file_num > 0 else []
+    train_files = train_files[:-dev_file_num] if dev_file_num > 0 else train_files
 
     # Create types from filtered training set
     with multiprocessing.Pool(num_workers) as pool:
@@ -201,7 +201,7 @@ def main(args):
         fname = os.path.basename(fname)
         fname = fname[: fname.index(".")] + ".jsonl"
         typelib.add_json_file(os.path.join(tgt_folder, "types", fname))
-    typelib.prune(5)
+    if not test_file: typelib.prune(5)
     typelib.sort()
 
     print("dumping typelib")
