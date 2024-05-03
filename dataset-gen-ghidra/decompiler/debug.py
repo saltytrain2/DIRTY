@@ -70,8 +70,8 @@ class CollectDebug(Collector):
             self.type_lib.add_ghidra_type(func_return)
             return_type = TypeLib.parse_ghidra_type(func_return)
 
-            for symbol in symbols:
-                print(symbol.getDataType().getDescription())
+            #for symbol in symbols:
+            #    print(symbol.getDataType().getDescription())
 
             arguments = self.collect_variables(
                 f.getStackFrame().getFrameSize(), [v for v in symbols if v.isParameter()] # and v.getName() in all_var_names],
