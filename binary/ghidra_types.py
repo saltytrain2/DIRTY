@@ -857,10 +857,11 @@ class Struct(UDT):
         return hash((self.name, self.layout))
 
     def __str__(self) -> str:
-        if self.name is None:
-            ret = f"struct {{ "
+
+        if self.name is not None:
+            return self.name
         else:
-            ret = f"struct {self.name} {{ "
+            ret = f"struct {{ "
         for l in self.layout:
             ret += f"{str(l)}; "
         ret += "}"
