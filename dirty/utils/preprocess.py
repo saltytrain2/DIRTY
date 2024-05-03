@@ -81,22 +81,6 @@ def json_line_reader(args):
     return func_json_list
 
 
-def type_dumper(args):
-    tgt_folder, fname = args
-    typelib = TypeLib()
-    with open(fname, "r") as f:
-        for line in f:
-            e = Example.from_json(json.loads(line))
-            for var in e.target.values():
-                typelib.add(var.typ)
-    typelib.sort()
-    with open(
-        os.path.join(tgt_folder, "types", fname.split("/")[-1]), "w"
-    ) as type_lib_file:
-        encoded = TypeLibCodec.encode(typelib)
-        type_lib_file.write(encoded)
-
-
 def main(args):
     np.random.seed(1234)
     random.seed(1992)
@@ -148,6 +132,15 @@ def main(args):
                         example.name
                     ] = example.canonical_code
 
+            # Symlink the type file from the unprocessed folder to the preprocessed folder.
+
+            base_file_name = os.path.splitext(json_file_name)[0]
+            type_file_name = base_file_name + ".json.gz"
+
+            input_type_file = os.path.join(input_folder, "types", type_file_name)
+
+            os.symlink(input_type_file, os.path.join(tgt_folder, "types", type_file_name))
+
             valid_example_count += len(examples)
 
     print("valid examples: ", valid_example_count)
@@ -189,18 +182,12 @@ def main(args):
     train_files = train_files[:-dev_file_num] if dev_file_num > 0 else train_files
 
     # Create types from filtered training set
-    with multiprocessing.Pool(num_workers) as pool:
-        pool.map(
-            type_dumper,
-            ((tgt_folder, fname) for fname in train_files),
-            chunksize=64,
-        )
     print("reading typelib")
     typelib = TypeLib()
     for fname in tqdm(train_files):
         fname = os.path.basename(fname)
-        fname = fname[: fname.index(".")] + ".jsonl"
-        typelib.add_json_file(os.path.join(tgt_folder, "types", fname))
+        fname = fname[: fname.index(".")] + ".json.gz"
+        typelib.add_json_file(os.path.join(tgt_folder, "types", fname), ungzip=True)
     if not test_file: typelib.prune(5)
     typelib.sort()
 
