@@ -17,8 +17,8 @@ import typing as t
 try:
     import ghidra.program.model.listing as listing
     import ghidra.program.model.data as data
-    from ghidra.program.model.data import PointerDataType, ArrayDataType, StructureDataType, UnionDataType, TypedefDataType
-    from ghidra.program.database.data import PointerDB, ArrayDB, StructureDB, UnionDB, TypedefDB
+    from ghidra.program.model.data import PointerDataType, ArrayDataType, StructureDataType, UnionDataType, TypedefDataType, FunctionDefinitionDataType
+    from ghidra.program.database.data import PointerDB, ArrayDB, StructureDB, UnionDB, TypedefDB, FunctionDefinitionDB
 except ImportError:
     pass
 # try:
@@ -172,7 +172,11 @@ class TypeLib:
         #     return FunctionPointer(name=typ.dstr())
         if typ is None:
             return
-
+        
+        elif isinstance(typ, (FunctionDefinitionDataType.__pytype__, FunctionDefinitionDB.__pytype__)):
+            # Rather than actually encoding function definitions, we'll just
+            # typedef them to void, so function pointers will be of type void*.
+            return TypeDef(name=typ.getName(), size=typ.getLength(), other_type_name="void")
         elif isinstance(typ, (PointerDataType.__pytype__, PointerDB.__pytype__)):
             return Pointer(typ.getDataType().getName())
         elif isinstance(typ, (ArrayDataType.__pytype__, ArrayDB.__pytype__)):
