@@ -7,6 +7,7 @@ from ghidra.program.model.symbol import SourceType
 from ghidra.program.model.data import PointerDataType, ArrayDataType, StructureDataType, UnionDataType, TypedefDataType
 from ghidra.app.services import DataTypeManagerService
 import json
+import random
 
 import ghidra_types
 
@@ -141,7 +142,11 @@ def build_ghidra_type(typelib_type):
 
 total = 0
 succ = 0
-for typename in all_typenames():
+
+l = list(all_typenames())
+random.shuffle(l)
+
+for typename in l:
     print(f"Trying to build type {typename}")
     total += 1
 
