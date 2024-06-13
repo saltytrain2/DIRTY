@@ -4,7 +4,9 @@ from sys import argv
 
 from ghidra.app.decompiler import DecompInterface
 from ghidra.program.model.data import Undefined
-from ghidra.app.util.bin.format.dwarf4.next import DWARFImportOptions, DWARFProgram
+#from ghidra.app.util.bin.format.dwarf4.next import DWARFImportOptions, DWARFProgram
+# changed in ghidra 11.1
+from ghidra.app.util.bin.format.dwarf import DWARFImportOptions, DWARFProgram
 from ghidra.util.task import ConsoleTaskMonitor
 
 from collect import Collector
