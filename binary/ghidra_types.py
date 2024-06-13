@@ -949,10 +949,10 @@ class Union(UDT):
         return hash((self.name, self.members, self.padding))
 
     def __str__(self) -> str:
-        if self.name is None:
-            ret = f"union {{ "
+        if self.name is not None:
+            return self.name
         else:
-            ret = f"union {self.name} {{ "
+            ret = f"union {{ "
         for m in self.members:
             ret += f"{str(m)}; "
         if self.padding is not None:
