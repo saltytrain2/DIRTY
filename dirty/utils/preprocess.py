@@ -188,13 +188,21 @@ def main(args):
         fname = os.path.basename(fname)
         fname = fname[: fname.index(".")] + ".json.gz"
         typelib.add_json_file(os.path.join(tgt_folder, "types", fname), ungzip=True)
-    if not test_file: typelib.prune(5)
+    
     typelib.sort()
 
     print("dumping typelib")
     with open(os.path.join(tgt_folder, "typelib.json"), "w") as type_lib_file:
         encoded = TypeLibCodec.encode(typelib)
         type_lib_file.write(encoded)
+
+    # Prune the type library.  This may remove subtypes of course.
+    if not test_file: typelib.prune(5)
+
+    print("dumping pruned typelib")
+    with open(os.path.join(tgt_folder, "typelib_pruned.json"), "w") as pruned_type_lib_file:
+        encoded = TypeLibCodec.encode(typelib)
+        pruned_type_lib_file.write(encoded)
 
     train_functions = dict()
     for train_file in train_files:
