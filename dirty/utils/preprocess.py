@@ -192,7 +192,7 @@ def main(args):
     typelib.sort()
 
     print("dumping typelib")
-    with open(os.path.join(tgt_folder, "typelib.json"), "w") as type_lib_file:
+    with open(os.path.join(tgt_folder, "typelib_complete.json"), "w") as type_lib_file:
         encoded = TypeLibCodec.encode(typelib)
         type_lib_file.write(encoded)
 
@@ -200,7 +200,7 @@ def main(args):
     if not test_file: typelib.prune(5)
 
     print("dumping pruned typelib")
-    with open(os.path.join(tgt_folder, "typelib_pruned.json"), "w") as pruned_type_lib_file:
+    with open(os.path.join(tgt_folder, "typelib.json"), "w") as pruned_type_lib_file:
         encoded = TypeLibCodec.encode(typelib)
         pruned_type_lib_file.write(encoded)
 
