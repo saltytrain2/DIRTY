@@ -33,18 +33,11 @@ def find_types_by_name(name):
         for _freq, typeentry in typelist:
             typename = str(typeentry)
             #if size == 160000: # or "double" in typename:
-            if debug: print(f"Hmm: {name} ==? {typename}")
+            #if debug and name in typename:
+            #    print(f"Hmm: {name} ==? {typename}")
             if typename == name:
                 yield typeentry
     return
-
-# test
-#aname = "struct cf_hmac_ctx { cf_chash * hash; cf_chash_ctx inner; cf_chash_ctx outer; }"
-#aname = "char"
-
-#for t in list(find_type_by_name(aname)):
-#    print(t)
-#    print(type(t))
 
 def find_type_by_name(name):
     try:
@@ -140,45 +133,46 @@ def build_ghidra_type(typelib_type):
     else:
         abort(f"Unknown type: {type(typelib_type)} {typelib_type}")
 
-total = 0
-succ = 0
+def test_types():
+    total = 0
+    succ = 0
 
-l = list(all_typenames())
-random.shuffle(l)
+    l = list(all_typenames())
+    random.shuffle(l)
 
-for typename in l:
-    print(f"Trying to build type {typename}")
-    total += 1
+    #l = ["longlong[20][10]"]
+    #l = ["xen_string_string_map"]
+    #debug = True
 
-    if monitor().isCancelled():
-        break
+    for typename in l:
+        print(f"Trying to build type {typename}")
+        total += 1
 
-    monitor().setMessage(f"Building type {typename}")
+        if monitor().isCancelled():
+            break
 
-    try:
-        ti = find_type_by_name(typename)
-    except Exception as e:
-        print(f"Failed to find type {typename} exception: {e}")
-        continue
+        monitor().setMessage(f"Building type {typename}")
 
-    try:
-        gtype = build_ghidra_type(ti)
-        assert gtype is not None, "build_ghidra_type returned None."
-        print(f"Successfully built type {typename} in Ghidra: {gtype}")
-    except Exception as e:
-        print(f"Failed to build ghidra type {typename} exception: {e}")
-        continue
+        try:
+            ti = find_type_by_name(typename)
+        except Exception as e:
+            print(f"Failed to find type {typename} exception: {e}")
+            continue
 
-    succ += 1
+        try:
+            gtype = build_ghidra_type(ti)
+            assert gtype is not None, "build_ghidra_type returned None."
+            print(f"Successfully built type {typename} in Ghidra: {gtype}")
+        except Exception as e:
+            print(f"Failed to build ghidra type {typename} exception: {e}")
+            #break
+            continue
 
-print(f"Successfully built {succ}/{total} types.")
+        succ += 1
 
-exit(0)
+        print(f"Successfully built {succ}/{total} {float(succ)/total} types.")
 
-
-test_type = find_type_by_name("struct pfmlib_output_param_t { uint pfp_pmc_count; uint pfp_pmd_count; pfmlib_reg_t[512] pfp_pmcs; pfmlib_reg_t[512] pfp_pmds; ulong[7] reserved; }")
-ghidra_test = build_ghidra_type(test_type)
-print(ghidra_test)
+    exit(0)
 
 exeName = currentProgram().getName()
 
