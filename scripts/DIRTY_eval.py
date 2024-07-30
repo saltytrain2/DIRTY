@@ -5,6 +5,7 @@ from ghidra.util.task import ConsoleTaskMonitor
 from ghidra.program.model.pcode import HighFunctionDBUtil
 from ghidra.program.model.symbol import SourceType
 from ghidra.program.model.data import PointerDataType, ArrayDataType, StructureDataType, UnionDataType, TypedefDataType
+from ghidra.program.model.data import BuiltInDataTypeManager
 from ghidra.app.services import DataTypeManagerService
 from ghidra.app.plugin.core.analysis import AutoAnalysisManager
 import json
@@ -61,7 +62,7 @@ def find_type_in_ghidra_typemanager(name, dtm):
 
 def find_type_in_any_ghidra_typemanager(name):
     #dtms = [AutoAnalysisManager.getAnalysisManager(currentProgram()).getDataTypeManagerService()]
-    dtms = [currentProgram().getDataTypeManager()]
+    dtms = [currentProgram().getDataTypeManager(), BuiltInDataTypeManager.getDataTypeManager()]
     #dtms = state().getTool().getService(DataTypeManagerService).getDataTypeManagers()
     for dtm in dtms:
         output = find_type_in_ghidra_typemanager(name, dtm)
@@ -220,6 +221,8 @@ if funcName in jsonObj:
     jsonObj = jsonObj[funcName]
 else:
     abort(f"Unable to find function %s in the JSON file." % funcName)
+
+dtm = currentProgram().getDataTypeManager()
 
  # Set up the decompiler
 decompiler = DecompInterface()

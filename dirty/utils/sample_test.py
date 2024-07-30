@@ -1,6 +1,7 @@
 # Sample a few test cases from the prediction json file.
 
 import json
+import hjson
 import argparse
 import multiprocessing
 import random
@@ -84,7 +85,7 @@ if __name__ == "__main__":
         # Strip the binary
         subprocess.check_call(["strip", temp_bin_file_name])
 
-        print(f"Stripped binary: {temp_bin_file_name}")
+        # print(f"Stripped binary: {temp_bin_file_name}")
 
         # Delete the json so we don't accidentally use the old results
         os.truncate(temp_json_file_name, 0)
@@ -134,6 +135,8 @@ if __name__ == "__main__":
 
         d["strip"]["aligned_frac"] = len(d["strip"]["aligned_vars"]) / len(d["strip"]["vars"])
 
+        d["predictions"] = jsondata
+
         return d
     
     def worker_catch(args):
@@ -149,6 +152,6 @@ if __name__ == "__main__":
 
     if args.output_file:
         with open(args.output_file, "w") as f:
-            json.dump(results, f, indent=4)
+            hjson.dump(results, f, indent=4)
     else:
-        print(json.dumps(results, indent=4), end="\n")
+        print(hjson.dumps(results, indent=4), end="\n")
