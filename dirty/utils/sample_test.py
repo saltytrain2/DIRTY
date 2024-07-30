@@ -124,9 +124,10 @@ if __name__ == "__main__":
 
         d["strip"]["aligned_frac"] = len(d["strip"]["aligned_vars"]) / len(d["strip"]["vars"])
 
+        # d["symbol"]["origvars"] = [v[1] for v in jsondata.values()]
 
-        d["symbol"]["aligned_vars"] = list(set(d["symbol"]["vars"]) & {v[1] for v in jsondata.values()})
-        d["symbol"]["aligned_frac"] = len(d["symbol"]["aligned_vars"]) / len(d["symbol"]["vars"])
+        # d["symbol"]["aligned_vars"] = list(set(d["symbol"]["vars"]) & {v[1] for v in jsondata.values()})
+        # d["symbol"]["aligned_frac"] = len(d["symbol"]["aligned_vars"]) / len(d["symbol"]["vars"])
 
         d["strip"]["log"] = strip_log.decode("utf-8")
         d["symbol"]["log"] = symbol_log.decode("utf-8")
