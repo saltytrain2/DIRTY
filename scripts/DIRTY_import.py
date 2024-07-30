@@ -177,6 +177,7 @@ def test_types():
 exeName = currentProgram().getName()
 
 jsonFile = askFile("Select JSON file", "Open")
+print("Parsing JSON")
 jsonObj = json.load(open(jsonFile.getAbsolutePath()))
 
 if exeName in jsonObj:
@@ -206,6 +207,7 @@ decompiler = DecompInterface()
 decompiler.openProgram(current_function.getProgram())
 
 # Decompile the current function
+print("Decompiling function " + current_function.getName() + "...")
 results = decompiler.decompileFunction(current_function, 0, ConsoleTaskMonitor())
 if not results.decompileCompleted():
     abort("Decompilation failed.")
@@ -221,10 +223,25 @@ for var in high_function.getLocalSymbolMap().getSymbols():
     original_name = var.getName()
 
     if original_name in jsonObj:
-        new_type, new_name = jsonObj[original_name]
-        if new_type != "disappear":
+        new_type_name, new_name = jsonObj[original_name]
+        if new_type_name != "disappear":
             print("Renaming " + original_name + " to " + new_name + ".")
-            HighFunctionDBUtil.updateDBVariable(var, new_name, None, SourceType.USER_DEFINED)
+
+            new_type = None
+
+
+            print(f"Attempting to retype {original_name}/{new_name} to {new_type_name}")
+
+            try:
+                ti = find_type_by_name(new_type_name)
+                new_type = build_ghidra_type(ti)
+                print(f"Changing type of {original_name}/{new_name} to {new_type_name}: {new_type}")
+            except Exception as e:
+                print(f"Failed to find or build type {new_type_name} exception: {e}")
+
+            HighFunctionDBUtil.updateDBVariable(var, new_name, new_type, SourceType.USER_DEFINED)
+
+
         else:
             print("Skipping disappear variable " + original_name + ".")
     else:
