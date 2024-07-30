@@ -254,7 +254,7 @@ for var in high_function.getLocalSymbolMap().getSymbols():
 
     if original_name in jsonObj:
         new_type_name, new_name = jsonObj[original_name]
-        if new_type_name != "disappear" and new_type_name != "<unk>":
+        if new_type_name != "disappear" and new_name != "<unk>" and new_type_name != "<unk>":
             print("Renaming " + original_name + " to " + new_name + ".")
 
             new_type = None
@@ -268,11 +268,13 @@ for var in high_function.getLocalSymbolMap().getSymbols():
             except Exception as e:
                 print(f"Failed to find or build type {new_type_name} exception: {e}")
 
-            HighFunctionDBUtil.updateDBVariable(var, new_name, new_type, SourceType.USER_DEFINED)
-
+            try:
+                HighFunctionDBUtil.updateDBVariable(var, new_name, new_type, SourceType.USER_DEFINED)
+            except Exception as e:
+                print(f"Failed to rename/retype {original_name} to {new_name}/{new_type_name} exception: {e}")
 
         else:
-            print("Skipping disappear variable " + original_name + ".")
+            print("Skipping disappear/unknown variable " + original_name + ".")
     else:
         print("No new name for " + original_name + " in JSON file.")
 

@@ -82,14 +82,19 @@ if __name__ == "__main__":
         shutil.copyfile(os.path.join(BIN_DIR, bin), temp_bin_file_name)
 
         # Strip the binary
-        subprocess.run(["strip", temp_bin_file_name])
+        subprocess.check_call(["strip", temp_bin_file_name])
+
+        print(f"Stripped binary: {temp_bin_file_name}")
+
+        # Delete the json so we don't accidentally use the old results
+        os.truncate(temp_json_file_name, 0)
 
         # Run Ghidra on the stripped version
         # XXX Capture logs
         strip_log = subprocess.check_output([
             "%s/support/analyzeHeadless" % os.environ["GHIDRA_INSTALL_DIR"],
             temp_dir,
-            "DummyProject",
+            "DummyProject2",
             "-readOnly",
             "-import",
             temp_bin_file_name,
@@ -112,6 +117,9 @@ if __name__ == "__main__":
 
         d = {"strip": strip_data, "symbol": symbol_data}
 
+        d["bin"] = bin
+        d["func"] = func
+
         d["strip"]["aligned_vars"] = list(set(d["strip"]["vars"]) & set(jsondata.keys()))
 
         d["strip"]["aligned_frac"] = len(d["strip"]["aligned_vars"]) / len(d["strip"]["vars"])
@@ -133,7 +141,7 @@ if __name__ == "__main__":
         except Exception as e:
             traceback.print_exc()
 
-            return {"exception": str(e)}
+            return json.dumps({"exception": str(e)})
 
     with multiprocessing.Pool(4) as pool:
         results = list(tqdm.tqdm(pool.imap_unordered(worker_catch, list(sampled_functions)), total=args.num_samples))
