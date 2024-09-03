@@ -195,12 +195,14 @@ class Runner(object):
                     subprocess.check_output(["cp", file_path, orig.name])
                     # Timeout after 30s for the collect run
                     var_set = self.extract_dwarf_var_names(os.path.join(path, orig.name))
-                    if not var_set:
-                        return
-                    pickle_file = os.path.join(path, orig.name) + ".p"
-                    pickle.dump(var_set, open(pickle_file, 'wb'))
-                    self.run_decompiler(new_env, path, os.path.join(path, orig.name), self.COLLECT, timeout=180)
-                    os.remove(pickle_file)
+                    if var_set:
+                        pickle_file = os.path.join(path, orig.name) + ".p"
+                        pickle.dump(var_set, open(pickle_file, 'wb'))
+                        self.run_decompiler(new_env, path, os.path.join(path, orig.name), self.COLLECT, timeout=180)
+                        os.remove(pickle_file)
+                    else:
+                        if self.verbose:
+                            print(f"Unable to collect debug information for {prefix}")
                 # Dump trees
                 pickle_file = os.path.join(path, stripped.name) + ".p"
                 pickle.dump(set(), open(pickle_file, 'wb'))
