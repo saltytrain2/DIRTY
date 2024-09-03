@@ -162,7 +162,7 @@ class CollectedFunction:
     """
 
     def __init__(self, *, ea: int, debug: Function, decompiler: Function):
-        self.name: str = debug.name
+        self.name: str = debug.name if hasattr(debug, "name") else "unknown"
         self.ea = ea
         self.debug = debug
         self.decompiler = decompiler
