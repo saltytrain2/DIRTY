@@ -40,7 +40,7 @@ if __name__ == "__main__":
 
     def worker(input):
         bin, (func, jsondata) = input
-        assert func.startswith("FUN_")
+        assert func.startswith("FUN_"), f"Function name {func} does not start with FUN_"
         funcaddr = func.replace("FUN_", "0x")
         #print(f"Bin: {bin}, Function: {func}")
 
@@ -68,8 +68,11 @@ if __name__ == "__main__":
             temp_json_file_name
         ], stderr=subprocess.STDOUT)
 
-        with open(temp_json_file_name, "r") as temp_json_file:
-            symbol_data = json.loads(temp_json_file.read())
+        try:
+            with open(temp_json_file_name, "r") as temp_json_file:
+                symbol_data = json.loads(temp_json_file.read())
+        except Exception as e:
+            return {"exception": str(e), "log": symbol_log.decode("utf-8")}
 
         # Nothing to rewrite
         del symbol_data['rewritten_decompilation']
@@ -107,8 +110,11 @@ if __name__ == "__main__":
             temp_json_file_name
         ], stderr=subprocess.STDOUT)
 
-        with open(temp_json_file_name, "r") as temp_json_file:
-            strip_data = json.loads(temp_json_file.read())
+        try:
+            with open(temp_json_file_name, "r") as temp_json_file:
+                strip_data = json.loads(temp_json_file.read())
+        except Exception as e:
+            return {"exception": str(e), "log": strip_log.decode("utf-8")}
 
         # Delete the temporary binary file
         os.remove(temp_bin_file_name)
@@ -130,12 +136,16 @@ if __name__ == "__main__":
         # d["symbol"]["aligned_vars"] = list(set(d["symbol"]["vars"]) & {v[1] for v in jsondata.values()})
         # d["symbol"]["aligned_frac"] = len(d["symbol"]["aligned_vars"]) / len(d["symbol"]["vars"])
 
-        d["strip"]["log"] = strip_log.decode("utf-8")
-        d["symbol"]["log"] = symbol_log.decode("utf-8")
+        if False:
+            d["strip"]["log"] = strip_log.decode("utf-8")
+            d["symbol"]["log"] = symbol_log.decode("utf-8")
 
         d["strip"]["aligned_frac"] = len(d["strip"]["aligned_vars"]) / len(d["strip"]["vars"])
 
         d["predictions"] = jsondata
+
+        d["name_predictions"] = {k: v for k, v in jsondata.items() if v[1] != "<unk>" and k != v[1]}
+        d["type_predictions"] = {k: v for k, v in jsondata.items() if v[0] != "<unk>"}
 
         return d
     
@@ -150,8 +160,28 @@ if __name__ == "__main__":
     with multiprocessing.Pool(4) as pool:
         results = list(tqdm.tqdm(pool.imap_unordered(worker_catch, list(sampled_functions)), total=args.num_samples))
 
+    total_variables_wo_symbols = sum(len(ex['strip']['vars']) for ex in results if "exception" not in ex)
+    total_variables_w_symbols = sum(len(ex['symbol']['vars']) for ex in results if "exception" not in ex)
+    #total_predictions = sum(len(ex['predictions']) for ex in results if "exception" not in ex)
+    total_name_predictions = sum(len(ex['name_predictions']) for ex in results if "exception" not in ex)
+    total_type_predictions = sum(len(ex['type_predictions']) for ex in results if "exception" not in ex)
+
+    results = {"examples": results}
+    results["total_variables_wo_symbols"] = total_variables_wo_symbols
+    results["total_variables_w_symbols"] = total_variables_w_symbols
+
+    #results["total_predictions"] = total_predictions
+    results["total_name_predictions"] = total_name_predictions
+    results["total_type_predictions"] = total_type_predictions
+
+    #results["total_prediction_frac"] = total_predictions / total_variables_wo_symbols
+    results["total_name_prediction_frac"] = total_name_predictions / total_variables_wo_symbols
+    results["total_type_prediction_frac"] = total_type_predictions / total_variables_wo_symbols
+
+    results["total_valid_ex"] = len([ex for ex in results["examples"] if "exception" not in ex]) 
+
     if args.output_file:
         with open(args.output_file, "w") as f:
-            hjson.dump(results, f, indent=4)
+            hjson.dump(results, f, indent=2)
     else:
-        print(hjson.dumps(results, indent=4), end="\n")
+        print(hjson.dumps(results, indent=2), end="\n")
