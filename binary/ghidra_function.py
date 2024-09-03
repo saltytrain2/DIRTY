@@ -170,7 +170,7 @@ class CollectedFunction:
     def to_json(self):
         return {
             "e": self.ea,
-            "b": self.debug.to_json(),
+            "b": self.debug.to_json() if hasattr(self.debug, "to_json") else {},
             "c": self.decompiler.to_json(),
         }
 
