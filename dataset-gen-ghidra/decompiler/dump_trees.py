@@ -22,7 +22,11 @@ class CollectDecompiler(Collector):
         print("Loading functions")
         # Load the functions collected by CollectDebug
         with open(os.environ["FUNCTIONS"], "rb") as functions_fh:
-            self.debug_functions: Dict[int, Function] = pickle.load(functions_fh)
+            try:
+                self.debug_functions: Dict[int, Function] = pickle.load(functions_fh)
+            except:
+                print("Unable to load debug_functions")
+                self.debug_functions = dict()
         print("Done")
         self.functions: List[CollectedFunction] = list()
         self.output_file_name = os.path.join(
@@ -93,7 +97,7 @@ class CollectDecompiler(Collector):
             self.functions.append(
                 CollectedFunction(
                     ea=f.getEntryPoint().toString(),
-                    debug=self.debug_functions[f.getEntryPoint().toString()],
+                    debug=self.debug_functions.get(f.getEntryPoint().toString(), None),
                     decompiler=decompiler,
                 )
             )
