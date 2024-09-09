@@ -348,8 +348,8 @@ class Dataset(wds.Dataset):
             torch.tensor(e.src_var_types, dtype=torch.long) for e in examples
         ]
         src_type_id = pad_sequence(src_type_ids, batch_first=True)
-        type_ids = [torch.tensor(e.tgt_var_types, dtype=torch.long) for e in examples]
-        target_type_id = pad_sequence(type_ids, batch_first=True)
+        tgt_type_ids = [torch.tensor(e.tgt_var_types, dtype=torch.long) for e in examples]
+        target_type_id = pad_sequence(tgt_type_ids, batch_first=True)
         assert target_type_id.shape == variable_mention_num.shape
 
         subtype_ids = [
@@ -397,11 +397,11 @@ class Dataset(wds.Dataset):
                 variable_mention_mask=variable_mention_mask,
                 variable_mention_num=variable_mention_num,
                 variable_encoding_mask=variable_encoding_mask,
-                target_type_src_mems=target_type_src_mems,
+                #target_type_src_mems=target_type_src_mems,
                 src_type_id=src_type_id,
-                target_mask=target_mask,
-                target_submask=target_subtype_id > 0,
-                target_type_sizes=target_type_sizes,
+                #target_mask=target_mask,
+                #target_submask=target_subtype_id > 0,
+                #target_type_sizes=target_type_sizes,
             ),
             dict(
                 tgt_var_names=sum([e.tgt_var_names for e in examples], []),
