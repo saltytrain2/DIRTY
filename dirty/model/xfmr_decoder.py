@@ -567,8 +567,8 @@ class XfmrInterleaveDecoder(XfmrDecoder):
         variable_encoding = XfmrInterleaveDecoder.interleave_3d(
             context_encoding["variable_encoding"], context_encoding["variable_encoding"]
         )
-        tgt_padding_mask = XfmrInterleaveDecoder.interleave_2d(
-            input_dict["target_mask"], input_dict["target_mask"]
+        padding_mask = XfmrInterleaveDecoder.interleave_2d(
+            input_dict["src_type_mask"], input_dict["src_type_mask"]
         )
         batch_size, max_time_step, _ = variable_encoding.shape
         tgt = torch.zeros(batch_size, 1, self.config["target_embedding_size"]).to(
@@ -584,7 +584,7 @@ class XfmrInterleaveDecoder(XfmrDecoder):
             mem_logits_list = []
             idx = 0
             for b in range(batch_size):
-                nvar = input_dict["target_mask"][b].sum().item()
+                nvar = input_dict["src_type_mask"][b].sum().item()
                 mem_logits_list.append(mem_logits[idx : idx + nvar])
                 idx += nvar
             assert idx == mem_logits.shape[0]
@@ -608,7 +608,7 @@ class XfmrInterleaveDecoder(XfmrDecoder):
         # context_encoding["variable_encoding"]: batch, max_time, hidden
 
         tgt = tile(tgt, beam_size, dim=0)
-        tiled_target_mask = tile(tgt_padding_mask, beam_size, dim=0)
+        tiled_target_mask = tile(padding_mask, beam_size, dim=0)
         code_token_encoding = tile(
             context_encoding["code_token_encoding"], beam_size, dim=0
         )
@@ -628,14 +628,14 @@ class XfmrInterleaveDecoder(XfmrDecoder):
             scores = logits[:, 0].view(batch_size, beam_size, -1)
             select_indices_array = []
             for b, bm in enumerate(beams):
-                if not tgt_padding_mask[b, idx]:
+                if not padding_mask[b, idx]:
                     select_indices_array.append(
                         torch.arange(beam_size).to(tgt.device) + b * beam_size
                     )
                     continue
                 if idx % 2 == 0:
                     s = scores[b, :, : self.retype_vocab_size]
-                    if self.mem_mask == "soft" and tgt_padding_mask[b, idx]:
+                    if self.mem_mask == "soft" and padding_mask[b, idx]:
                         s += mem_logits_list[b][idx // 2]
                 else:
                     s = scores[b, :, self.retype_vocab_size :]
@@ -647,7 +647,7 @@ class XfmrInterleaveDecoder(XfmrDecoder):
                 torch.stack(
                     [
                         bm.getCurrentState()
-                        if tgt_padding_mask[b, idx]
+                        if padding_mask[b, idx]
                         else torch.zeros(beam_size, dtype=torch.long).to(tgt.device)
                         for b, bm in enumerate(beams)
                     ]

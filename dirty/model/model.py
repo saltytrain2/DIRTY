@@ -211,12 +211,12 @@ class InterleaveDecodeModule(pl.LightningModule):
             context_encoding, target_dict
         )
         if self.soft_mem_mask:
-            variable_type_logits = variable_type_logits[input_dict["target_mask"]]
+            variable_type_logits = variable_type_logits[input_dict["src_type_mask"]]
             mem_encoding = self.mem_encoder(input_dict)
             mem_type_logits = self.mem_decoder(mem_encoding, target_dict)
             retype_loss = F.cross_entropy(
                 variable_type_logits + mem_type_logits,
-                target_dict["target_type_id"][input_dict["target_mask"]],
+                target_dict["target_type_id"][input_dict["src_type_mask"]],
                 reduction="none",
             )
         else:
@@ -232,7 +232,7 @@ class InterleaveDecodeModule(pl.LightningModule):
             target_dict["target_name_id"],
             reduction="none",
         )
-        rename_loss = rename_loss[input_dict["target_mask"]]
+        rename_loss = rename_loss[input_dict["src_type_mask"]]
         ret = self.decoder.predict(
             context_encoding, input_dict, None, self.beam_size if test else 0
         )
@@ -240,12 +240,12 @@ class InterleaveDecodeModule(pl.LightningModule):
 
         return dict(
             retype_loss=retype_loss.detach().cpu(),
-            retype_targets=target_dict["target_type_id"][input_dict["target_mask"]]
+            retype_targets=target_dict["target_type_id"][input_dict["src_type_mask"]]
             .detach()
             .cpu(),
             retype_preds=retype_preds.detach().cpu(),
             rename_loss=rename_loss.detach().cpu(),
-            rename_targets=target_dict["target_name_id"][input_dict["target_mask"]]
+            rename_targets=target_dict["target_name_id"][input_dict["src_type_mask"]]
             .detach()
             .cpu(),
             rename_preds=rename_preds.detach().cpu(),

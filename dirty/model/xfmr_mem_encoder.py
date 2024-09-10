@@ -104,7 +104,7 @@ class XfmrMemEncoder(Encoder):
         :rtype: Dict[str, torch.Tensor]
         """
         mem_encoding, mem_mask = self.encode_sequence(
-            tensor_dict["target_type_src_mems"][tensor_dict["target_mask"]]
+            tensor_dict["src_var_locs"][tensor_dict["src_type_mask"]]
         )
 
         # TODO: ignore the padding when averaging

@@ -241,7 +241,7 @@ class Dataset(wds.Dataset):
         tgt_var_subtypes = []
         tgt_var_type_sizes = []
         tgt_var_type_objs = []
-        tgt_var_src_mems = []
+        src_var_locs = []
         tgt_names = []
         # variables on registers first, followed by those on stack
         locs = sorted(
@@ -287,7 +287,7 @@ class Dataset(wds.Dataset):
                         else 2
                     )
 
-            tgt_var_src_mems.append(
+            src_var_locs.append(
                 [var_loc_in_func(loc)]
                 + types_model.encode_memory(
                     (src_var.typ.size,) + src_var.typ.start_offsets()
@@ -305,11 +305,11 @@ class Dataset(wds.Dataset):
             )
         setattr(example, "src_var_types", src_var_types_id)
         setattr(example, "src_var_types_str", src_var_types_str)
+        setattr(example, "src_var_locs", src_var_locs)
         setattr(example, "tgt_var_types", tgt_var_types_id)
         setattr(example, "tgt_var_types_str", tgt_var_types_str)
         setattr(example, "tgt_var_subtypes", tgt_var_subtypes)
         setattr(example, "tgt_var_type_sizes", tgt_var_type_sizes)
-        setattr(example, "tgt_var_src_mems", tgt_var_src_mems)
 
         return example
 
@@ -361,18 +361,21 @@ class Dataset(wds.Dataset):
         ]
         target_type_sizes = pad_sequence(type_sizes, batch_first=True)
 
-        target_mask = src_type_id > 0
-        target_type_src_mems = [
+
+        src_type_mask = src_type_id > 0
+
+
+        src_var_locs = [
             torch.tensor(mems, dtype=torch.long)
             for e in examples
-            for mems in e.tgt_var_src_mems
+            for mems in e.src_var_locs
         ]
-        target_type_src_mems = pad_sequence(target_type_src_mems, batch_first=True)
-        target_type_src_mems_unflattened = torch.zeros(
-            *target_mask.shape, target_type_src_mems.size(-1), dtype=torch.long
+        src_var_locs = pad_sequence(src_var_locs, batch_first=True)
+        src_var_locs_unflattened = torch.zeros(
+            *src_type_mask.shape, src_var_locs.size(-1), dtype=torch.long
         )
-        target_type_src_mems_unflattened[target_mask] = target_type_src_mems
-        target_type_src_mems = target_type_src_mems_unflattened
+        src_var_locs_unflattened[src_type_mask] = src_var_locs
+        src_var_locs = src_var_locs_unflattened
 
         # renaming task
         if hasattr(examples[0], "tgt_var_name_ids"):
@@ -399,7 +402,8 @@ class Dataset(wds.Dataset):
                 variable_encoding_mask=variable_encoding_mask,
                 #target_type_src_mems=target_type_src_mems,
                 src_type_id=src_type_id,
-                #target_mask=target_mask,
+                src_type_mask=src_type_mask,
+                src_var_locs=src_var_locs,
                 #target_submask=target_subtype_id > 0,
                 #target_type_sizes=target_type_sizes,
             ),
@@ -408,7 +412,7 @@ class Dataset(wds.Dataset):
                 target_type_id=target_type_id,
                 target_name_id=target_name_id,
                 target_subtype_id=target_subtype_id,
-                target_mask=target_mask,
+                #target_mask=src_type_mask,
                 test_meta=[e.test_meta for e in examples],
             ),
         )
