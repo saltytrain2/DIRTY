@@ -355,7 +355,9 @@ class TypeReconstructionModel(pl.LightningModule):
 
         return dict(
             **ret_dict,
-            targets_nums=input_dict["target_mask"].sum(dim=1),
+            # this is the number of variables per example, which is same in src
+            # and tgt.
+            targets_nums=input_dict["src_type_mask"].sum(dim=1),
             test_meta=target_dict["test_meta"],
             index=input_dict["index"],
             tgt_var_names=target_dict["tgt_var_names"],

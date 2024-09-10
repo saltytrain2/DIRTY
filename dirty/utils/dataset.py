@@ -49,6 +49,11 @@ class Example:
             location_from_json_key(loc): Variable.from_json(var)
             for loc, var in d["target"].items()
         }
+
+        # It seems like other code assumes the number of source and target
+        # variables are the same.
+        assert len(source) == len(target), "Source and target have different lengths"
+
         return cls(
             d["name"],
             d["code_tokens"],
