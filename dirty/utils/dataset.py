@@ -363,6 +363,7 @@ class Dataset(wds.Dataset):
 
 
         src_type_mask = src_type_id > 0
+        tgt_type_mask = target_type_id > 0
 
 
         src_var_locs = [
@@ -412,7 +413,7 @@ class Dataset(wds.Dataset):
                 target_type_id=target_type_id,
                 target_name_id=target_name_id,
                 target_subtype_id=target_subtype_id,
-                #target_mask=src_type_mask,
+                target_type_mask=tgt_type_mask,
                 test_meta=[e.test_meta for e in examples],
             ),
         )

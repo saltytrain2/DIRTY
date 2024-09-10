@@ -420,7 +420,7 @@ class XfmrInterleaveDecoder(XfmrDecoder):
         tgt_mask = XfmrDecoder.generate_square_subsequent_mask(tgt.shape[1], tgt.device)
         # TransformerModels have batch_first=False
         tgt_padding_mask = XfmrInterleaveDecoder.interleave_2d(
-            target_dict["target_mask"], target_dict["target_mask"]
+            target_dict["target_type_mask"], target_dict["target_type_mask"]
         )
         hidden = self.decoder(
             tgt.transpose(0, 1),
