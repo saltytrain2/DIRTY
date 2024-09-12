@@ -176,7 +176,7 @@ class CollectedFunction:
 
     @classmethod
     def from_json(cls, d):
-        debug = Function.from_json(d["b"])
+        debug = Function.from_json(d["b"]) if d["b"] is not None else None,
         decompiler = Function.from_json(d["c"])
         return cls(ea=d["e"], debug=debug, decompiler=decompiler)
 
