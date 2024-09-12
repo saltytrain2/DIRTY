@@ -82,7 +82,10 @@ class Example:
         code_tokens = tokenize_raw_code(raw_code)
 
         source = {**cf.decompiler.local_vars, **cf.decompiler.arguments}
-        target = {**cf.debug.local_vars, **cf.debug.arguments}
+        if hasattr(cf.debug, "local_vars"):
+            target = {**cf.debug.local_vars, **cf.debug.arguments}
+        else:
+            target = {}
 
         # Remove variables that overlap on memory or don't appear in the code tokens
         source_code_tokens_set = set(code_tokens[code_tokens.index("{"):])
@@ -91,6 +94,8 @@ class Example:
         source = Example.filter(source, source_code_tokens_set)
         # target = Example.filter(target, target_code_tokens_set, set(source.keys()))
         target = Example.filter(target, None, set(source.keys()))
+
+        print(f"WTF {target}")
 
         # Assign type "Disappear" to variables not existing in the ground truth
         varnames = set()
