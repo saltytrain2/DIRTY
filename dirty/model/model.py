@@ -199,6 +199,9 @@ class InterleaveDecodeModule(pl.LightningModule):
 
         return retype_loss, rename_loss
 
+    def forward(self, context_encoding, input_dict):
+        return self.decoder.predict(context_encoding, input_dict, self.beam_size)
+
     def get_unmasked_logits(self, context_encoding, input_dict, target_dict):
         variable_type_logits, _ = self.decoder(context_encoding, target_dict)
         variable_type_logits = variable_type_logits[target_dict["target_mask"]]
@@ -234,7 +237,7 @@ class InterleaveDecodeModule(pl.LightningModule):
         )
         rename_loss = rename_loss[input_dict["src_type_mask"]]
         ret = self.decoder.predict(
-            context_encoding, input_dict, None, self.beam_size if test else 0
+            context_encoding, input_dict, self.beam_size if test else 0
         )
         retype_preds, rename_preds = ret[0], ret[1]
 
@@ -362,6 +365,29 @@ class TypeReconstructionModel(pl.LightningModule):
             index=input_dict["index"],
             tgt_var_names=target_dict["tgt_var_names"],
         )
+    
+    def forward(self, batch):
+        input_dict = batch
+        context_encoding = self.encoder(input_dict)
+        if self.interleave:
+            ret = self.interleave_module(context_encoding, input_dict)
+        else:
+            if self.retype:
+                ret = self.retyping_module(context_encoding, input_dict)
+            elif self.rename:
+                ret = self.renaming_module(context_encoding, input_dict)
+            else:
+                assert False
+
+        retype_preds, rename_preds = ret
+        retype_preds_name = [self.vocab.types.id2word[x.item()] for x in retype_preds]
+
+        rename_preds_name = [self.vocab.names.id2word[x.item()] for x in rename_preds]
+
+        return {
+            "retype_preds": retype_preds_name,
+            "rename_preds": rename_preds_name,
+        }
 
     def validation_epoch_end(self, outputs):
         self._shared_epoch_end(outputs, "val")

@@ -95,8 +95,6 @@ class Example:
         # target = Example.filter(target, target_code_tokens_set, set(source.keys()))
         target = Example.filter(target, None, set(source.keys()))
 
-        print(f"WTF {target}")
-
         # Assign type "Disappear" to variables not existing in the ground truth
         varnames = set()
         for loc in source.keys():

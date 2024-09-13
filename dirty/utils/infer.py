@@ -10,15 +10,22 @@ from utils.ghidra_function import CollectedFunction
 from utils.dataset import Example, Dataset
 from utils.code_processing import canonicalize_code
 
+from model.model import TypeReconstructionModel
+
 import _jsonnet
 
 from docopt import docopt
 import json
 
+from torch.utils.data import DataLoader, TensorDataset
+import pytorch_lightning as pl
+import torch
 
 def main(args):
 
     config = json.loads(_jsonnet.evaluate_file(args["CONFIG_FILE"]))
+    model = TypeReconstructionModel(config)
+    model.eval()
 
     json_dict = json.load(open(args["INPUT_JSON"], "r"))
     # print(json_dict)
@@ -28,7 +35,7 @@ def main(args):
     example = Example.from_cf(
         cf, binary_file=args["INPUT_JSON"], max_stack_length=1024, max_type_size=1024
     )
-    print(example)
+    #print(example)
 
     assert example.is_valid_example
 
@@ -45,9 +52,21 @@ def main(args):
     example = dataset._annotate(example)
 
     collated_example = dataset.collate_fn([example])
-    print(collated_example)
+    collated_example, _garbage = collated_example
+    #print(collated_example)
 
-    # XXX Run the model!!!
+    #tensor = torch.tensor([collated_example])
+    #print(tensor)
+
+    #single_example_loader = DataLoader([collated_example], batch_size=1)
+
+    #trainer = pl.Trainer()
+    #wat = trainer.predict(model, single_example_loader)
+    #print(wat)
+
+    with torch.no_grad():
+        output = model(collated_example)
+    print(f"The model output is: {output}")
 
 
 if __name__ == "__main__":

@@ -440,23 +440,23 @@ class XfmrInterleaveDecoder(XfmrDecoder):
         self,
         context_encoding: Dict[str, torch.Tensor],
         input_dict: Dict[str, torch.Tensor],
-        variable_type_logits: torch.Tensor,
+        #variable_type_logits: torch.Tensor,
         beam_size: int = 0,
     ):
         if beam_size == 0:
             return self.greedy_decode(
-                context_encoding, input_dict, variable_type_logits
+                context_encoding, input_dict
             )
         else:
             return self.beam_decode(
-                context_encoding, input_dict, variable_type_logits, beam_size
+                context_encoding, input_dict, beam_size
             )
 
     def greedy_decode(
         self,
         context_encoding: Dict[str, torch.Tensor],
         input_dict: Dict[str, torch.Tensor],
-        variable_type_logits: torch.Tensor,
+        #variable_type_logits: torch.Tensor,
     ):
         """Greedy decoding"""
 
@@ -558,7 +558,7 @@ class XfmrInterleaveDecoder(XfmrDecoder):
         self,
         context_encoding: Dict[str, torch.Tensor],
         input_dict: Dict[str, torch.Tensor],
-        variable_type_logits: torch.Tensor,
+        #variable_type_logits: torch.Tensor,
         beam_size: int = 5,
         length_norm: bool = True,
     ):
