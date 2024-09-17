@@ -1,6 +1,6 @@
 """
 Usage:
-    infer.py [options] CONFIG_FILE INPUT_JSON
+    infer.py [options] CONFIG_FILE INPUT_JSON MODEL_CHECKPOINT
 
 Options:
     -h --help                  Show this screen.
@@ -24,13 +24,14 @@ import torch
 def main(args):
 
     config = json.loads(_jsonnet.evaluate_file(args["CONFIG_FILE"]))
-    model = TypeReconstructionModel(config)
+
+    model = TypeReconstructionModel.load_from_checkpoint(checkpoint_path=args["MODEL_CHECKPOINT"], config=config) 
     model.eval()
 
     json_dict = json.load(open(args["INPUT_JSON"], "r"))
     # print(json_dict)
     cf = CollectedFunction.from_json(json_dict)
-    print(cf)
+    #print(cf)
 
     example = Example.from_cf(
         cf, binary_file=args["INPUT_JSON"], max_stack_length=1024, max_type_size=1024
