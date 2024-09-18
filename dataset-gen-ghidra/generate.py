@@ -1,4 +1,4 @@
-# Specialzed version for ghidra compatibility
+# Specialized version for ghidra compatibility
 
 import argparse
 import subprocess
