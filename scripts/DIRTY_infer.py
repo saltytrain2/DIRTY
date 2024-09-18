@@ -12,14 +12,17 @@ from collections import defaultdict
 import sys
 import os
 import _jsonnet
+import pathlib
 
-TYPELIB_PATH = "/home/ed/Downloads/typelib.json"
+DIRTY_PATH = pathlib.Path(os.path.realpath(__file__)).parent.parent.resolve()
 
-DIRTY_PATH = "/home/ed/Projects/DIRTY/DIRTY-ghidra"
+#DIRTY_PATH = "/home/ed/Projects/DIRTY/DIRTY-ghidra"
+
+TYPELIB_PATH = os.path.join(DIRTY_PATH, 'dirty', 'data1', 'typelib_complete.json')
 
 DIRTY_CONFIG = os.path.join(DIRTY_PATH, 'dirty', "multitask.xfmr.jsonnet")
 
-MODEL_CHECKPOINT = "/home/ed/Projects/DIRTY/DIRTY-ghidra/dirty/wandb/run-20240801_110549-uhjhbuj4/files/dire/uhjhbuj4/checkpoints/epoch=14-v0.ckpt"
+MODEL_CHECKPOINT = os.path.join(DIRTY_PATH, 'dirty', 'data1', 'model.ckpt')
 
 # Allow loading from the dirty directories.
 #sys.path.append(os.path.join(DIRTY_PATH, 'dataset-gen-ghidra', 'decompiler'))
