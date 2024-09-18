@@ -15,6 +15,12 @@ This README explicitly covers all the steps necessary to train a DIRTY model fro
 - [Ghidrathon 3.0.1](https://github.com/mandiant/Ghidrathon)
 - `pip install -r requirements.txt`
 
+### Libraries
+
+A few libraries are required by the python packages.  On ubuntu, you can install
+these with:
+- `apt install pkg-config libsentencepiece-dev`
+
 ## Training a DIRTY model
 
 ### Dataset Generation
