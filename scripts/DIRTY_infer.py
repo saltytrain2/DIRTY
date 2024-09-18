@@ -25,7 +25,6 @@ DIRTY_CONFIG = os.path.join(DIRTY_PATH, 'dirty', "multitask.xfmr.jsonnet")
 MODEL_CHECKPOINT = os.path.join(DIRTY_PATH, 'dirty', 'data1', 'model.ckpt')
 
 # Allow loading from the dirty directories.
-#sys.path.append(os.path.join(DIRTY_PATH, 'dataset-gen-ghidra', 'decompiler'))
 
 sys.path.append(os.path.join(DIRTY_PATH, 'dirty'))
 
