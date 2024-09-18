@@ -337,7 +337,8 @@ for var in high_function.getLocalSymbolMap().getSymbols():
     if original_name in model_output:
         new_type_name, new_name = model_output[original_name]
         if new_type_name != "disappear":
-            print("Renaming " + original_name + " to " + new_name + ".")
+            if new_name != original_name:
+                print("Renaming " + original_name + " to " + new_name + ".")
 
             new_type = None
 
@@ -357,4 +358,4 @@ for var in high_function.getLocalSymbolMap().getSymbols():
         else:
             print("Skipping disappear variable " + original_name + ".")
     else:
-        print("No new name for " + original_name + " in prediction.")
+        print("No new name/type for " + original_name + " in prediction.")
