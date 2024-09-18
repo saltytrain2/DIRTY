@@ -7,7 +7,7 @@ from typing import Dict, List
 
 from ghidra.app.decompiler import DecompInterface
 
-from ghidra_ast import AST
+#from ghidra_ast import AST
 from collect import Collector
 from ghidra_function import CollectedFunction, Function
 from ghidra_types import TypeLib

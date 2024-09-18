@@ -17,24 +17,12 @@ import _jsonnet
 from docopt import docopt
 import json
 
-from torch.utils.data import DataLoader, TensorDataset
-import pytorch_lightning as pl
 import torch
 
-def main(args):
-
-    config = json.loads(_jsonnet.evaluate_file(args["CONFIG_FILE"]))
-
-    model = TypeReconstructionModel.load_from_checkpoint(checkpoint_path=args["MODEL_CHECKPOINT"], config=config) 
-    model.eval()
-
-    json_dict = json.load(open(args["INPUT_JSON"], "r"))
-    # print(json_dict)
-    cf = CollectedFunction.from_json(json_dict)
-    #print(cf)
+def infer(config, model, cf, binary_file=None):
 
     example = Example.from_cf(
-        cf, binary_file=args["INPUT_JSON"], max_stack_length=1024, max_type_size=1024
+        cf, binary_file=binary_file, max_stack_length=1024, max_type_size=1024
     )
     #print(example)
 
@@ -67,7 +55,25 @@ def main(args):
 
     with torch.no_grad():
         output = model(collated_example)
-    print(f"The model output is: {output}")
+
+    return output
+
+
+def main(args):
+
+    config = json.loads(_jsonnet.evaluate_file(args["CONFIG_FILE"]))
+
+    json_dict = json.load(open(args["INPUT_JSON"], "r"))
+    # print(json_dict)
+    cf = CollectedFunction.from_json(json_dict)
+    #print(cf)
+
+    model = TypeReconstructionModel.load_from_checkpoint(checkpoint_path=args["MODEL_CHECKPOINT"], config=config) 
+    model.eval()
+
+    model_output = infer(config, model, cf, binary_file=args['INPUT_JSON'])
+
+    print(f"The model output is: {model_output}")
 
 
 if __name__ == "__main__":
