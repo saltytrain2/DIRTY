@@ -56,6 +56,14 @@ def infer(config, model, cf, binary_file=None):
     with torch.no_grad():
         output = model(collated_example)
 
+    var_names = [x[2:-2] for x in example.src_var_names]
+    var_types = example.src_var_types_str
+
+    pred_names = output['rename_preds']
+    pred_types = output['retype_preds']
+
+    output = {oldname: (newtype, newname) for (oldname, newname, newtype) in zip(var_names, pred_names, pred_types)}
+
     return output
 
 
