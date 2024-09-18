@@ -61,8 +61,10 @@ def collect_variables(variables):
 
         if storage.isStackStorage():
             loc = Stack(storage.getStackOffset())
-        if storage.isRegisterStorage():
+        elif storage.isRegisterStorage():
             loc = Register(storage.getRegister().getName())
+        else:
+            print(f"Unknown storage type for {v} {v.getName()}: {storage}")
         if loc is not None:
             collected_vars[loc].add(
                 Variable(typ=typ, name=v.getName(), user=False)
@@ -300,7 +302,7 @@ assert current_function is not None
 #funcName = current_function.getName()
 
 cf = dump(current_function)
-print(cf)
+#print(cf)
 
 config = json.loads(_jsonnet.evaluate_file(DIRTY_CONFIG))
 
@@ -338,7 +340,7 @@ for var in high_function.getLocalSymbolMap().getSymbols():
         new_type_name, new_name = model_output[original_name]
         if new_type_name != "disappear":
 
-            if new_name == "<unk>":
+            if new_name in ["<unk>", ""]:
                 new_name = original_name
 
             if new_name != original_name:
@@ -347,16 +349,21 @@ for var in high_function.getLocalSymbolMap().getSymbols():
             new_type = None
 
 
-            print(f"Attempting to retype {original_name}/{new_name} to {new_type_name}")
+
+            if new_type_name != "<unk>":
+                print(f"Attempting to retype {original_name}/{new_name} to {new_type_name}")
+
+                try:
+                    ti = find_type_by_name(new_type_name)
+                    new_type = build_ghidra_type(ti)
+                    print(f"Changing type of {original_name}/{new_name} to {new_type_name}: {new_type}")
+                except Exception as e:
+                    print(f"Failed to find or build type {new_type_name} exception: {e}")
 
             try:
-                ti = find_type_by_name(new_type_name)
-                new_type = build_ghidra_type(ti)
-                print(f"Changing type of {original_name}/{new_name} to {new_type_name}: {new_type}")
+                HighFunctionDBUtil.updateDBVariable(var, new_name, new_type, SourceType.USER_DEFINED)
             except Exception as e:
-                print(f"Failed to find or build type {new_type_name} exception: {e}")
-
-            HighFunctionDBUtil.updateDBVariable(var, new_name, new_type, SourceType.USER_DEFINED)
+                print(f"Failed to update variable {original_name} exception: {e}")
 
 
         else:

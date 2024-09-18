@@ -81,7 +81,16 @@ class Example:
         raw_code = cf.decompiler.raw_code
         code_tokens = tokenize_raw_code(raw_code)
 
-        source = {**cf.decompiler.local_vars, **cf.decompiler.arguments}
+
+        source = {**cf.decompiler.local_vars}
+
+        # Actually merge these correctly!
+        for k, v in cf.decompiler.arguments.items():
+            # v is a set
+            if k in source:
+                source[k].update(v)
+            else:
+                source[k] = v
         if hasattr(cf.debug, "local_vars"):
             target = {**cf.debug.local_vars, **cf.debug.arguments}
         else:
@@ -133,6 +142,7 @@ class Example:
         ret: Mapping[Location, Set[Variable]] = {}
         for location, variable_set in mapping.items():
             if len(variable_set) > 1:
+                print(f"Warning: Ignoring location {location} with multiple variables {variable_set}")
                 continue
             var = list(variable_set)[0]
             if code_tokens is not None and not var.name in code_tokens:
