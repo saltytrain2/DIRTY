@@ -13,6 +13,7 @@ import sys
 import os
 import _jsonnet
 import pathlib
+import tqdm
 
 DIRTY_PATH = pathlib.Path(os.path.realpath(__file__)).parent.parent.resolve()
 
@@ -166,7 +167,11 @@ def find_type_in_ghidra_typemanager(name, dtm):
         return None
 
 def find_type_in_any_ghidra_typemanager(name):
-    dtms = state().getTool().getService(DataTypeManagerService).getDataTypeManagers()
+    tool = state().getTool()
+    if tool is not None:
+        dtms = state().getTool().getService(DataTypeManagerService).getDataTypeManagers()
+    else:
+        dtms = [currentProgram().getDataTypeManager()]
     for dtm in dtms:
         output = find_type_in_ghidra_typemanager(name, dtm)
         if output is not None:
@@ -294,81 +299,110 @@ def test_types():
 #else:
 #    abort("Unable to find the executable in the JSON file.")
 
-current_location = currentLocation()
+def do_infer(cf):
 
-# Get the function containing this location.
-current_function = getFunctionContaining(current_location.getAddress())
+    config = json.loads(_jsonnet.evaluate_file(DIRTY_CONFIG))
 
-assert current_function is not None
+    # Set wd so the model can find data1/vocab.bpe10000
 
-#funcName = current_function.getName()
+    os.chdir(os.path.join(DIRTY_PATH, 'dirty'))
 
-cf = dump(current_function)
-#print(cf)
+    model = TypeReconstructionModel.load_from_checkpoint(checkpoint_path=MODEL_CHECKPOINT, config=config) 
+    model.eval()
 
-config = json.loads(_jsonnet.evaluate_file(DIRTY_CONFIG))
+    model_output = utils.infer.infer(config, model, cf)
+    print(model_output)
 
-# Set wd so the model can find data1/vocab.bpe10000
+    # Set up the decompiler
+    decompiler = DecompInterface()
+    decompiler.openProgram(current_function.getProgram())
 
-os.chdir(os.path.join(DIRTY_PATH, 'dirty'))
+    # Decompile the current function
+    print("Decompiling function " + current_function.getName() + "...")
+    results = decompiler.decompileFunction(current_function, 0, ConsoleTaskMonitor())
+    if not results.decompileCompleted():
+        abort("Decompilation failed.")
 
-model = TypeReconstructionModel.load_from_checkpoint(checkpoint_path=MODEL_CHECKPOINT, config=config) 
-model.eval()
+    # Get the high-level representation of the function
+    high_function = results.getHighFunction()
+    if not high_function:
+        abort("Failed to get high-level function representation.")
 
-model_output = utils.infer.infer(config, model, cf)
-print(model_output)
+    # Example: rename a specific variable (change the criteria as needed)
+    for var in high_function.getLocalSymbolMap().getSymbols():
 
- # Set up the decompiler
-decompiler = DecompInterface()
-decompiler.openProgram(current_function.getProgram())
+        original_name = var.getName()
 
-# Decompile the current function
-print("Decompiling function " + current_function.getName() + "...")
-results = decompiler.decompileFunction(current_function, 0, ConsoleTaskMonitor())
-if not results.decompileCompleted():
-    abort("Decompilation failed.")
+        if original_name in model_output:
+            new_type_name, new_name = model_output[original_name]
+            if new_type_name != "disappear":
 
-# Get the high-level representation of the function
-high_function = results.getHighFunction()
-if not high_function:
-    abort("Failed to get high-level function representation.")
+                if new_name in ["<unk>", ""]:
+                    new_name = original_name
 
-# Example: rename a specific variable (change the criteria as needed)
-for var in high_function.getLocalSymbolMap().getSymbols():
+                if new_name != original_name:
+                    print("Renaming " + original_name + " to " + new_name + ".")
 
-    original_name = var.getName()
-
-    if original_name in model_output:
-        new_type_name, new_name = model_output[original_name]
-        if new_type_name != "disappear":
-
-            if new_name in ["<unk>", ""]:
-                new_name = original_name
-
-            if new_name != original_name:
-                print("Renaming " + original_name + " to " + new_name + ".")
-
-            new_type = None
+                new_type = None
 
 
 
-            if new_type_name != "<unk>":
-                print(f"Attempting to retype {original_name}/{new_name} to {new_type_name}")
+                if new_type_name != "<unk>":
+                    print(f"Attempting to retype {original_name}/{new_name} to {new_type_name}")
+
+                    try:
+                        ti = find_type_by_name(new_type_name)
+                        new_type = build_ghidra_type(ti)
+                        print(f"Changing type of {original_name}/{new_name} to {new_type_name}: {new_type}")
+                    except Exception as e:
+                        print(f"Failed to find or build type {new_type_name} exception: {e}")
 
                 try:
-                    ti = find_type_by_name(new_type_name)
-                    new_type = build_ghidra_type(ti)
-                    print(f"Changing type of {original_name}/{new_name} to {new_type_name}: {new_type}")
+                    HighFunctionDBUtil.updateDBVariable(var, new_name, new_type, SourceType.USER_DEFINED)
                 except Exception as e:
-                    print(f"Failed to find or build type {new_type_name} exception: {e}")
-
-            try:
-                HighFunctionDBUtil.updateDBVariable(var, new_name, new_type, SourceType.USER_DEFINED)
-            except Exception as e:
-                print(f"Failed to update variable {original_name} exception: {e}")
+                    print(f"Failed to update variable {original_name} exception: {e}")
 
 
+            else:
+                print("Skipping disappear variable " + original_name + ".")
         else:
-            print("Skipping disappear variable " + original_name + ".")
-    else:
-        print("No new name/type for " + original_name + " in prediction.")
+            print("No new name/type for " + original_name + " in prediction.")
+
+if not isRunningHeadless():
+
+    current_location = currentLocation()
+
+    # Get the function containing this location.
+    current_function = getFunctionContaining(current_location.getAddress())
+
+    assert current_function is not None
+
+    cf = dump(current_function)
+    do_infer(cf)
+
+else:
+
+    print("We are in headless mode.")
+
+    function_manager = currentProgram().getFunctionManager()
+    
+    # Get all functions as an iterator
+    function_iter = function_manager.getFunctions(True)
+
+    # Keep trying functions until we find one that works!  This is needed
+    # because small/trivial functions will fail.
+    for current_function in tqdm.tqdm(function_iter):
+        if current_function.isThunk() or current_function.isExternal():
+            continue
+        print(f"Trying {current_function}")
+        try:
+            cf = dump(current_function)
+            do_infer(cf)
+            print("Success!")
+            args = getScriptArgs()
+            outfile = args[0] if len(args) > 0 else "infer_success.txt"
+            open(outfile, "w").write("success")
+            #break
+        except Exception as e:
+            print(f"{current_function} because {e.__class__.__name__}: {str(e)}, trying next function")
+            continue
