@@ -13,13 +13,13 @@ This README explicitly covers all the steps necessary to train a DIRTY model fro
 Most people probably just want to use DIRTY-Ghidra to predict variable names and
 types for their own binaries.  If that is you, follow these instructions:
 
-1. Clone this repository
+1. Clone this repository to `DIRTY_DIR`
 2. Create a virtual environment (venv) and install the requirements via `pip install -r requirements.txt`
 3. Install Ghidra
 4. Install Ghidrathon.  Make sure you configure Ghidrathon (`python
-   ghidrathon_configure.py`) using the same venv.
-5. Download [data1.tar.bz2](https://cmu.box.com/s/nx9fyn8jx0i9p4bftw8f2giqlufnoyj5) and extract it in CLONE_DIR/dirty (`tar -xvjf data1.tar.bz2 -C CLONE_DIR/dirthy`)
-6. Run `mkdir ~/ghidra_scripts && ln -s CLONE_DIR/scripts/DIRTY_infer.py ~/ghidra_scripts/DIRTY_infer.py` if on Linux.
+   ghidrathon_configure.py`) using the venv from step 2.
+5. Download [data1.tar.bz2](https://cmu.box.com/s/nx9fyn8jx0i9p4bftw8f2giqlufnoyj5) and extract it in DIRTY_DIR/dirty (`tar -xvjf data1.tar.bz2 -C DIRTY_DIR/dirty`)
+6. Run `mkdir ~/ghidra_scripts && ln -s DIRTY_DIR/scripts/DIRTY_infer.py ~/ghidra_scripts/DIRTY_infer.py` if on Linux.
 7. Open a function in Ghidra.  Run the script `DIRTY_infer.py` in the script manager.
 8. Optionally assign the script to a keyboard shortcut.
 
