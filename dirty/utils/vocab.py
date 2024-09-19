@@ -36,7 +36,7 @@ class VocabEntry:
 
         self.subtoken_model_path = subtoken_model_path
         if subtoken_model_path:
-            print(subtoken_model_path)
+            #print(subtoken_model_path)
             self.subtoken_model = spm.SentencePieceProcessor()
             self.subtoken_model.load(subtoken_model_path)
 
