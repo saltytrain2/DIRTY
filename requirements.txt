@@ -7,7 +7,7 @@ pytorch-lightning~=1.0.8
 sentencepiece~=0.1.91
 ujson~=3.2.0
 wandb
-webdataset~=0.1.40
+webdataset==0.1.40
 pyelftools~=0.29
 jsonlines
 numpy>=1.20,<2.0
