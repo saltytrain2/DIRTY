@@ -368,6 +368,9 @@ def do_infer(cf):
         else:
             print("No new name/type for " + original_name + " in prediction.")
 
+if sys.version_info.major < 3:
+    abort("You are not running Python 3.  This is probably a sign that you did not correctly configure Ghidrathon.")
+
 if not isRunningHeadless():
 
     current_location = currentLocation()
