@@ -8,7 +8,11 @@ While most of the model code remains identical, we add support for generating a 
 The original README provides clear instructions on how to download and run their pre-trained DIRTY model, but the README's instructions are slightly unclear when describing how to train your own model.
 This README explicitly covers all the steps necessary to train a DIRTY model from scratch.
 
+This is @edmcman's fork of the original DIRTY-Ghidra repository.  It features a number of improvements and bug fixes, and also includes the ability to perform inference on new examples.
+
 ## Getting Started with DIRTY-Ghidra Inference
+
+[![Test DIRTY Ghidra's inference ability](https://github.com/edmcman/DIRTY-Ghidra/actions/workflows/test.yml/badge.svg)](https://github.com/edmcman/DIRTY-Ghidra/actions/workflows/test.yml)
 
 Most people probably just want to use DIRTY-Ghidra to predict variable names and
 types for their own binaries.  If that is you, follow these instructions:
