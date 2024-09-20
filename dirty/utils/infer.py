@@ -26,7 +26,7 @@ def infer(config, model, cf, binary_file=None):
     )
     #print(example)
 
-    assert example.is_valid_example
+    assert example.is_valid_example, "Not a valid example, it probably has no variables"
 
     canonical_code = canonicalize_code(example.raw_code)
     example.canonical_code = canonical_code
