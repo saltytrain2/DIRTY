@@ -4,8 +4,15 @@ from ghidra.app.decompiler import DecompInterface
 from ghidra.util.task import ConsoleTaskMonitor
 from ghidra.program.model.pcode import HighFunctionDBUtil
 from ghidra.program.model.symbol import SourceType
-from ghidra.program.model.data import PointerDataType, ArrayDataType, StructureDataType, UnionDataType, TypedefDataType
+from ghidra.program.model.data import (
+    PointerDataType,
+    ArrayDataType,
+    StructureDataType,
+    UnionDataType,
+    TypedefDataType,
+)
 from ghidra.app.services import DataTypeManagerService
+from ghidra.program.model.address import Address
 import json
 import random
 from collections import defaultdict
@@ -17,17 +24,17 @@ import tqdm
 
 DIRTY_PATH = pathlib.Path(os.path.realpath(__file__)).parent.parent.resolve()
 
-#DIRTY_PATH = "/home/ed/Projects/DIRTY/DIRTY-ghidra"
+# DIRTY_PATH = "/home/ed/Projects/DIRTY/DIRTY-ghidra"
 
-TYPELIB_PATH = os.path.join(DIRTY_PATH, 'dirty', 'data1', 'typelib_complete.json')
+TYPELIB_PATH = os.path.join(DIRTY_PATH, "dirty", "data1", "typelib_complete.json")
 
-DIRTY_CONFIG = os.path.join(DIRTY_PATH, 'dirty', "multitask.xfmr.jsonnet")
+DIRTY_CONFIG = os.path.join(DIRTY_PATH, "dirty", "multitask.xfmr.jsonnet")
 
-MODEL_CHECKPOINT = os.path.join(DIRTY_PATH, 'dirty', 'data1', 'model.ckpt')
+MODEL_CHECKPOINT = os.path.join(DIRTY_PATH, "dirty", "data1", "model.ckpt")
 
 # Allow loading from the dirty directories.
 
-sys.path.append(os.path.join(DIRTY_PATH, 'dirty'))
+sys.path.append(os.path.join(DIRTY_PATH, "dirty"))
 
 # Load dirty modules
 
@@ -42,12 +49,15 @@ import utils.infer
 
 debug = False
 
+
 def abort(s):
     raise Exception(s)
+
 
 # Specialized version of dataset-gen-ghidra/decompiler/dump_trees.py
 
 # Specialized version from collect.py
+
 
 def collect_variables(variables):
 
@@ -69,10 +79,9 @@ def collect_variables(variables):
         else:
             print(f"Unknown storage type for {v} {v.getName()}: {storage}")
         if loc is not None:
-            collected_vars[loc].add(
-                Variable(typ=typ, name=v.getName(), user=False)
-            )
+            collected_vars[loc].add(Variable(typ=typ, name=v.getName(), user=False))
     return collected_vars
+
 
 def dump(f):
 
@@ -81,7 +90,6 @@ def dump(f):
     decomp.openProgram(currentProgram())
 
     decomp_results = decomp.decompileFunction(f, 30, None)
-    #f = decomp_results.getFunction()
 
     if not decomp_results.decompileCompleted():
         abort("Failed to decompile")
@@ -94,7 +102,7 @@ def dump(f):
     symbols = [v for v in lsm.getSymbols()]
     func_return = high_func.getFunctionPrototype().getReturnType()
 
-    name:str = f.getName()
+    name: str = f.getName()
 
     return_type = utils.ghidra_types.TypeLib.parse_ghidra_type(func_return)
 
@@ -117,12 +125,13 @@ def dump(f):
     )
 
     cf = CollectedFunction(
-            ea=f.getEntryPoint().toString(),
-            debug=None,
-            decompiler=decompiler,
-        )
-    
+        ea=f.getEntryPoint().toString(),
+        debug=None,
+        decompiler=decompiler,
+    )
+
     return cf
+
 
 # End dump_trees.py
 
@@ -131,21 +140,21 @@ typelib = codec.decode(open(TYPELIB_PATH, "r").read())
 
 name_to_type = {}
 
+
 def all_typenames():
     for _size, typelist in typelib.items():
         for _freq, typeentry in typelist:
             yield str(typeentry)
 
+
 def find_types_by_name(name):
     for size, typelist in typelib.items():
         for _freq, typeentry in typelist:
             typename = str(typeentry)
-            #if size == 160000: # or "double" in typename:
-            #if debug and name in typename:
-            #    print(f"Hmm: {name} ==? {typename}")
             if typename == name:
                 yield typeentry
     return
+
 
 def find_type_by_name(name):
     try:
@@ -153,6 +162,7 @@ def find_type_by_name(name):
     except StopIteration:
         print(f"Unable to find type {name} in typelib. Hopefully it is a built-in!")
         return utils.ghidra_types.TypeInfo(name=name, size=0)
+
 
 def find_type_in_ghidra_typemanager(name, dtm):
     if dtm is None:
@@ -166,10 +176,13 @@ def find_type_in_ghidra_typemanager(name, dtm):
     else:
         return None
 
+
 def find_type_in_any_ghidra_typemanager(name):
     tool = state().getTool()
     if tool is not None:
-        dtms = state().getTool().getService(DataTypeManagerService).getDataTypeManagers()
+        dtms = (
+            state().getTool().getService(DataTypeManagerService).getDataTypeManagers()
+        )
     else:
         dtms = [currentProgram().getDataTypeManager()]
     for dtm in dtms:
@@ -178,9 +191,9 @@ def find_type_in_any_ghidra_typemanager(name):
             return output
     return None
 
+
 @lru_cache(maxsize=20000)
 def build_ghidra_type(typelib_type):
-    #print(f"build_ghidra_type {typelib_type} {typelib_type.__dict__} {type(typelib_type)}")
 
     # First check our cache.  This is important for self-referential types
     # (e.g., linked lists).
@@ -204,21 +217,38 @@ def build_ghidra_type(typelib_type):
             case 8:
                 return find_type_in_any_ghidra_typemanager("uint64_t")
             case _:
-                abort(f"Unknown type with unusual size: {typelib_type.size} {typelib_type.name}")
+                abort(
+                    f"Unknown type with unusual size: {typelib_type.size} {typelib_type.name}"
+                )
 
     elif type(typelib_type) == utils.ghidra_types.Array:
         element_type = build_ghidra_type(find_type_by_name(typelib_type.element_type))
-        return ArrayDataType(element_type, typelib_type.nelements, typelib_type.element_size)
+        return ArrayDataType(
+            element_type, typelib_type.nelements, typelib_type.element_size
+        )
     elif type(typelib_type) == utils.ghidra_types.Pointer:
-        target_type = build_ghidra_type(find_type_by_name(typelib_type.target_type_name))
+        target_type = build_ghidra_type(
+            find_type_by_name(typelib_type.target_type_name)
+        )
         return PointerDataType(target_type)
         # Make type.
-    elif type(typelib_type) == utils.ghidra_types.Struct or type(typelib_type) == utils.ghidra_types.Union:
-        new_struct = StructureDataType(typelib_type.name, typelib_type.size) if type(typelib_type) == utils.ghidra_types.Struct else UnionDataType(typelib_type.name)
+    elif (
+        type(typelib_type) == utils.ghidra_types.Struct
+        or type(typelib_type) == utils.ghidra_types.Union
+    ):
+        new_struct = (
+            StructureDataType(typelib_type.name, typelib_type.size)
+            if type(typelib_type) == utils.ghidra_types.Struct
+            else UnionDataType(typelib_type.name)
+        )
         # We need to immediately make this available in case we have a self-referential type.
         name_to_type[str(typelib_type)] = new_struct
         offset = 0
-        for member in (typelib_type.layout if type(typelib_type) == utils.ghidra_types.Struct else typelib_type.members):
+        for member in (
+            typelib_type.layout
+            if type(typelib_type) == utils.ghidra_types.Struct
+            else typelib_type.members
+        ):
             if type(member) == utils.ghidra_types.UDT.Padding:
                 # Don't do anything?
                 pass
@@ -226,7 +256,9 @@ def build_ghidra_type(typelib_type):
             elif type(member) == utils.ghidra_types.UDT.Field:
                 member_type = build_ghidra_type(find_type_by_name(member.type_name))
                 if type(typelib_type) == utils.ghidra_types.Struct:
-                    new_struct.insertAtOffset(offset, member_type, member.size, member.name, "")
+                    new_struct.insertAtOffset(
+                        offset, member_type, member.size, member.name, ""
+                    )
                 elif type(typelib_type) == utils.ghidra_types.Union:
                     new_struct.add(member_type, member.size, member.name, "")
                 else:
@@ -235,9 +267,9 @@ def build_ghidra_type(typelib_type):
                 abort("Unknown member type: " + str(type(member)))
 
             offset = offset + member.size
-                
-            #field_type = build_ghidra_type(find_type_by_name(field.type))
-            #new_struct.add(field_type, field.name, field.comment)
+
+            # field_type = build_ghidra_type(find_type_by_name(field.type))
+            # new_struct.add(field_type, field.name, field.comment)
         return new_struct
     elif type(typelib_type) == utils.ghidra_types.TypeDef:
         other_type = build_ghidra_type(find_type_by_name(typelib_type.other_type_name))
@@ -245,83 +277,37 @@ def build_ghidra_type(typelib_type):
     else:
         abort(f"Unknown type: {type(typelib_type)} {typelib_type}")
 
-def test_types():
-    total = 0
-    succ = 0
 
-    l = list(all_typenames())
-    random.shuffle(l)
+def do_infer(cf, ghidra_function):
 
-    #l = ["longlong[20][10]"]
-    #l = ["xen_string_string_map"]
-    #debug = True
-
-    for typename in l:
-        print(f"Trying to build type {typename}")
-        total += 1
-
-        if monitor().isCancelled():
-            break
-
-        monitor().setMessage(f"Building type {typename}")
-
-        try:
-            ti = find_type_by_name(typename)
-        except Exception as e:
-            print(f"Failed to find type {typename} exception: {e}")
-            continue
-
-        try:
-            gtype = build_ghidra_type(ti)
-            assert gtype is not None, "build_ghidra_type returned None."
-            print(f"Successfully built type {typename} in Ghidra: {gtype}")
-        except Exception as e:
-            print(f"Failed to build ghidra type {typename} exception: {e}")
-            #break
-            continue
-
-        succ += 1
-
-        print(f"Successfully built {succ}/{total} {float(succ)/total} types.")
-
-    exit(0)
-
-#exeName = currentProgram().getName()
-
-#jsonFile = askFile("Select JSON file", "Open")
-#print("Parsing JSON")
-#jsonObj = json.load(open(jsonFile.getAbsolutePath()))
-
-#if exeName in jsonObj:
-#    jsonObj = jsonObj[exeName]
-#elif len(jsonObj) == 1:
-#    jsonObj = jsonObj[list(jsonObj.keys())[0]]
-#else:
-#    abort("Unable to find the executable in the JSON file.")
-
-def do_infer(cf):
+    output = {}
 
     config = json.loads(_jsonnet.evaluate_file(DIRTY_CONFIG))
 
     # Set wd so the model can find data1/vocab.bpe10000
 
-    os.chdir(os.path.join(DIRTY_PATH, 'dirty'))
+    os.chdir(os.path.join(DIRTY_PATH, "dirty"))
 
-    model = TypeReconstructionModel.load_from_checkpoint(checkpoint_path=MODEL_CHECKPOINT, config=config) 
+    model = TypeReconstructionModel.load_from_checkpoint(
+        checkpoint_path=MODEL_CHECKPOINT, config=config
+    )
     model.eval()
 
     model_output = utils.infer.infer(config, model, cf)
     print(model_output)
+    output['model_output'] = model_output
 
     # Set up the decompiler
     decompiler = DecompInterface()
-    decompiler.openProgram(current_function.getProgram())
+    decompiler.openProgram(ghidra_function.getProgram())
 
     # Decompile the current function
-    print("Decompiling function " + current_function.getName() + "...")
-    results = decompiler.decompileFunction(current_function, 0, ConsoleTaskMonitor())
+    print("Decompiling function " + ghidra_function.getName() + "...")
+    results = decompiler.decompileFunction(ghidra_function, 0, ConsoleTaskMonitor())
     if not results.decompileCompleted():
         abort("Decompilation failed.")
+
+    output["original_decompile"] = results.getDecompiledFunction().getC()
 
     # Get the high-level representation of the function
     high_function = results.getHighFunction()
@@ -345,67 +331,109 @@ def do_infer(cf):
 
                 new_type = None
 
-
-
                 if new_type_name != "<unk>":
-                    print(f"Attempting to retype {original_name}/{new_name} to {new_type_name}")
+                    print(
+                        f"Attempting to retype {original_name}/{new_name} to {new_type_name}"
+                    )
 
                     try:
                         ti = find_type_by_name(new_type_name)
                         new_type = build_ghidra_type(ti)
-                        print(f"Changing type of {original_name}/{new_name} to {new_type_name}: {new_type}")
+                        print(
+                            f"Changing type of {original_name}/{new_name} to {new_type_name}: {new_type}"
+                        )
                     except Exception as e:
-                        print(f"Failed to find or build type {new_type_name} exception: {e}")
+                        print(
+                            f"Failed to find or build type {new_type_name} exception: {e}"
+                        )
 
                 try:
-                    HighFunctionDBUtil.updateDBVariable(var, new_name, new_type, SourceType.USER_DEFINED)
+                    HighFunctionDBUtil.updateDBVariable(
+                        var, new_name, new_type, SourceType.USER_DEFINED
+                    )
                 except Exception as e:
                     print(f"Failed to update variable {original_name} exception: {e}")
-
 
             else:
                 print("Skipping disappear variable " + original_name + ".")
         else:
             print("No new name/type for " + original_name + " in prediction.")
 
+    output["decompile"] = results.getDecompiledFunction().getC()
+
+    return output
+
+
 if sys.version_info.major < 3:
-    abort("You are not running Python 3.  This is probably a sign that you did not correctly configure Ghidrathon.")
+    abort(
+        "You are not running Python 3.  This is probably a sign that you did not correctly configure Ghidrathon."
+    )
 
 if not isRunningHeadless():
 
     current_location = currentLocation()
 
     # Get the function containing this location.
-    current_function = getFunctionContaining(current_location.getAddress())
+    ghidra_function = getFunctionContaining(current_location.getAddress())
 
-    assert current_function is not None
+    assert ghidra_function is not None
 
-    cf = dump(current_function)
-    do_infer(cf)
+    cf = dump(ghidra_function)
+    do_infer(cf, ghidra_function)
 
 else:
 
     print("We are in headless mode.")
 
-    function_manager = currentProgram().getFunctionManager()
-    
-    # Get all functions as an iterator
-    function_iter = function_manager.getFunctions(True)
+    args = getScriptArgs()
+    outfile = args[0] if len(args) > 0 else "infer_success.txt"
 
-    # Keep trying functions until we find one that works!  This is needed
-    # because small/trivial functions will fail.
-    for current_function in tqdm.tqdm(function_iter):
-        if current_function.isThunk() or current_function.isExternal():
-            continue
-        print(f"Trying {current_function}")
+    # Argument 0 is the output file for infer_success.txt.  This is used by the
+    # CI.  Argument 1 is the target function to infer, if present.  This is used
+    # by the huggingface space.
+    targetFunAddr = hex(int(args[1])) if len(args) >= 2 else None
+
+    function_manager = currentProgram().getFunctionManager()
+
+    if targetFunAddr is not None:  # Huggingface space
+
         try:
-            cf = dump(current_function)
-            do_infer(cf)
-            print("Success!")
-            args = getScriptArgs()
-            outfile = args[0] if len(args) > 0 else "infer_success.txt"
-            open(outfile, "w").write("success")
-            #break
+            print(f"HF mode: {targetFunAddr}")
+            addr = currentProgram().getAddressFactory().getAddress(targetFunAddr)
+            print(f"Address: {addr}")
+            fun = function_manager.getFunctionAt(addr)
+            assert fun is not None, f"Unable to find function {targetFunAddr}"
+
+            cf = dump(fun)
+            infer_out = do_infer(cf, fun)
+
+            json_output = {**infer_out, "disassembly": "Disassembly TBD"}
+
+            json.dump(json_output, open(outfile, "w"))
         except Exception as e:
-            print(f"{current_function} because {e.__class__.__name__}: {str(e)}, trying next function")
-            continue
+            json_output = {"exception": str(e)}
+            json.dump(json_output, open(outfile, "w"))
+
+    else:  # CI mode
+        print("CI mode")
+        # Get all functions as an iterator
+        function_iter = function_manager.getFunctions(True)
+
+        # Keep trying functions until we find one that works!  This is needed
+        # because small/trivial functions will fail.
+        for ghidra_function in tqdm.tqdm(function_iter):
+            if ghidra_function.isThunk() or ghidra_function.isExternal():
+                continue
+            print(f"Trying {ghidra_function}")
+            try:
+                cf = dump(ghidra_function)
+                do_infer(cf, ghidra_function)
+                print("Success!")
+
+                open(outfile, "w").write("success")
+                # break
+            except Exception as e:
+                print(
+                    f"{ghidra_function} because {e.__class__.__name__}: {str(e)}, trying next function"
+                )
+                continue
