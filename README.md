@@ -18,14 +18,15 @@ Most people probably just want to use DIRTY-Ghidra to predict variable names and
 types for their own binaries.  If that is you, follow these instructions:
 
 1. Clone this repository to `DIRTY_DIR`
-2. Create a virtual environment (venv) and install the requirements via `pip install -r requirements.txt`
-3. Install Ghidra
-4. Install Ghidrathon.  Make sure you configure Ghidrathon (`python
+2. Optional but highly recommended: Create a virtual environment (venv) with `python -m venv /path/to/venv; source /path/to/venv/bin/activate`. This will prevent DIRTY from interfering with your system python packages.
+3. Install the requirements via `pip install -r requirements.txt`
+4. [Install Ghidra](https://ghidra-sre.org/InstallationGuide.html)
+5. [Install Ghidrathon](https://github.com/mandiant/Ghidrathon/?tab=readme-ov-file#installing-ghidrathon).  Make sure you configure Ghidrathon (`python
    ghidrathon_configure.py`) using the venv from step 2.
-5. Download [data1.tar.bz2](https://cmu.box.com/s/nx9fyn8jx0i9p4bftw8f2giqlufnoyj5) and extract it in DIRTY_DIR/dirty (`tar -xvjf data1.tar.bz2 -C DIRTY_DIR/dirty`)
-6. Run `mkdir ~/ghidra_scripts && ln -s DIRTY_DIR/scripts/DIRTY_infer.py ~/ghidra_scripts/DIRTY_infer.py` if on Linux.
-7. Open a function in Ghidra.  Run the script `DIRTY_infer.py` in the script manager.
-8. Optionally assign the script to a keyboard shortcut.
+6. Download [data1.tar.bz2](https://cmu.box.com/s/nx9fyn8jx0i9p4bftw8f2giqlufnoyj5) and extract it in DIRTY_DIR/dirty (`tar -xvjf data1.tar.bz2 -C DIRTY_DIR/dirty`)
+7. Run `mkdir ~/ghidra_scripts && ln -s DIRTY_DIR/scripts/DIRTY_infer.py ~/ghidra_scripts/DIRTY_infer.py` if on Linux.
+8. Open a function in Ghidra.  Run the script `DIRTY_infer.py` in the script manager.
+9. Optionally assign the script to a keyboard shortcut.
 
 ## Requirements
 
