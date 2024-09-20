@@ -1,13 +1,13 @@
-docopt==0.6.2
+docopt~=0.6.2
 # only needed for dire eval?
 #editdistance~=0.5.3
-jsonnet==0.16.0
-pygments==2.6.1
-pytorch-lightning==1.0.8
+jsonnet~=0.16.0
+#pygments==2.6.1
+pytorch-lightning~=1.0.8
 sentencepiece~=0.1.91
-ujson==3.2.0
+ujson~=3.2.0
 wandb
-webdataset==0.1.40
-pyelftools==0.29
+webdataset~=0.1.40
+pyelftools~=0.29
 jsonlines
 numpy>=1.20,<2.0
