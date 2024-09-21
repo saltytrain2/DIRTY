@@ -360,6 +360,15 @@ def do_infer(cf, ghidra_function, redecompile=False):
             print("No new name/type for " + original_name + " in prediction.")
 
     if redecompile:
+
+        addrSet = ghidra_function.getBody()
+        codeUnits = currentProgram().getListing().getCodeUnits(addrSet, True)
+        asm = ""
+        for codeUnit in codeUnits:
+            asm += f"{hex(codeUnit.getAddress().getOffset())}: {codeUnit.toString()}\n"
+        output["disassembly"] = asm
+
+
         results = decompiler.decompileFunction(ghidra_function, 0, ConsoleTaskMonitor())
         if not results.decompileCompleted():
             abort("Re-decompilation failed.")
@@ -411,7 +420,7 @@ else:
             cf = dump(fun)
             infer_out = do_infer(cf, fun, redecompile=True)
 
-            json_output = {**infer_out, "disassembly": "Disassembly TBD"}
+            json_output = {**infer_out}
 
             json.dump(json_output, open(outfile, "w"))
         except Exception as e:
