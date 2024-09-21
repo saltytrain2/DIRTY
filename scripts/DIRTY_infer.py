@@ -278,7 +278,7 @@ def build_ghidra_type(typelib_type):
         abort(f"Unknown type: {type(typelib_type)} {typelib_type}")
 
 
-def do_infer(cf, ghidra_function):
+def do_infer(cf, ghidra_function, redecompile=False):
 
     output = {}
 
@@ -359,7 +359,11 @@ def do_infer(cf, ghidra_function):
         else:
             print("No new name/type for " + original_name + " in prediction.")
 
-    output["decompile"] = results.getDecompiledFunction().getC()
+    if redecompile:
+        results = decompiler.decompileFunction(ghidra_function, 0, ConsoleTaskMonitor())
+        if not results.decompileCompleted():
+            abort("Re-decompilation failed.")
+        output["decompile"] = results.getDecompiledFunction().getC()
 
     return output
 
@@ -405,7 +409,7 @@ else:
             assert fun is not None, f"Unable to find function {targetFunAddr}"
 
             cf = dump(fun)
-            infer_out = do_infer(cf, fun)
+            infer_out = do_infer(cf, fun, redecompile=True)
 
             json_output = {**infer_out, "disassembly": "Disassembly TBD"}
 
