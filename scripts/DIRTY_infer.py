@@ -53,88 +53,6 @@ debug = False
 def abort(s):
     raise Exception(s)
 
-
-# Specialized version of dataset-gen-ghidra/decompiler/dump_trees.py
-
-# Specialized version from collect.py
-
-
-def collect_variables(variables):
-
-    collected_vars = defaultdict(set)
-
-    for v in variables:
-        if v.getName() == "":
-            continue
-
-        typ: TypeInfo = TypeLib.parse_ghidra_type(v.getDataType())
-
-        loc: Optional[Location] = None
-        storage = v.getStorage()
-
-        if storage.isStackStorage():
-            loc = Stack(storage.getStackOffset())
-        elif storage.isRegisterStorage():
-            loc = Register(storage.getRegister().getName())
-        else:
-            print(f"Unknown storage type for {v} {v.getName()}: {storage}")
-        if loc is not None:
-            collected_vars[loc].add(Variable(typ=typ, name=v.getName(), user=False))
-    return collected_vars
-
-
-def dump(f):
-
-    decomp = DecompInterface()
-    decomp.toggleSyntaxTree(False)
-    decomp.openProgram(currentProgram())
-
-    decomp_results = decomp.decompileFunction(f, 30, None)
-
-    if not decomp_results.decompileCompleted():
-        abort("Failed to decompile")
-
-    if decomp_results.getErrorMessage() != "":
-        abort("Failed to decompile")
-
-    high_func = decomp_results.getHighFunction()
-    lsm = high_func.getLocalSymbolMap()
-    symbols = [v for v in lsm.getSymbols()]
-    func_return = high_func.getFunctionPrototype().getReturnType()
-
-    name: str = f.getName()
-
-    return_type = utils.ghidra_types.TypeLib.parse_ghidra_type(func_return)
-
-    arguments = collect_variables(
-        [v for v in symbols if v.isParameter()],
-    )
-    local_vars = collect_variables(
-        [v for v in symbols if not v.isParameter()],
-    )
-
-    raw_code = decomp_results.getCCodeMarkup().toString()
-
-    decompiler = Function(
-        ast=None,
-        name=name,
-        return_type=return_type,
-        arguments=arguments,
-        local_vars=local_vars,
-        raw_code=raw_code,
-    )
-
-    cf = CollectedFunction(
-        ea=f.getEntryPoint().toString(),
-        debug=None,
-        decompiler=decompiler,
-    )
-
-    return cf
-
-
-# End dump_trees.py
-
 codec = utils.ghidra_types.TypeLibCodec()
 typelib = codec.decode(open(TYPELIB_PATH, "r").read())
 
@@ -417,7 +335,7 @@ else:
             fun = function_manager.getFunctionAt(addr)
             assert fun is not None, f"Unable to find function {targetFunAddr}"
 
-            cf = dump(fun)
+            cf = utils.infer.ghidra_obtain_cf(fun)
             infer_out = do_infer(cf, fun, redecompile=True)
 
             json_output = {**infer_out}
@@ -439,7 +357,7 @@ else:
                 continue
             print(f"Trying {ghidra_function}")
             try:
-                cf = dump(ghidra_function)
+                cf = utils.infer.ghidra_obtain_cf(ghidra_function)
                 do_infer(cf, ghidra_function)
                 print("Success!")
 

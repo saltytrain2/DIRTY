@@ -6,7 +6,12 @@ Options:
     -h --help                  Show this screen.
 """
 
+from collections import defaultdict
+
+from typing import Optional
+
 from utils.ghidra_function import CollectedFunction
+from utils.ghidra_types import TypeLib, TypeInfo, Location, Stack, Register, Variable, Function
 from utils.dataset import Example, Dataset
 from utils.code_processing import canonicalize_code
 
@@ -18,6 +23,84 @@ from docopt import docopt
 import json
 
 import torch
+
+# Specialized version of dataset-gen-ghidra/decompiler/dump_trees.py
+
+def ghidra_obtain_cf(ghidra_func):
+
+    from ghidra.app.decompiler import DecompInterface
+
+    # Specialized version from collect.py
+
+    def collect_variables(variables):
+
+        collected_vars = defaultdict(set)
+
+        for v in variables:
+            if v.getName() == "":
+                continue
+
+            typ: TypeInfo = TypeLib.parse_ghidra_type(v.getDataType())
+
+            loc: Optional[Location] = None
+            storage = v.getStorage()
+
+            if storage.isStackStorage():
+                loc = Stack(storage.getStackOffset())
+            elif storage.isRegisterStorage():
+                loc = Register(storage.getRegister().getName())
+            else:
+                print(f"Unknown storage type for {v} {v.getName()}: {storage}")
+            if loc is not None:
+                collected_vars[loc].add(Variable(typ=typ, name=v.getName(), user=False))
+        return collected_vars
+
+    decomp = DecompInterface()
+    decomp.toggleSyntaxTree(False)
+    decomp.openProgram(currentProgram())
+
+    decomp_results = decomp.decompileFunction(ghidra_func, 30, None)
+
+    if not decomp_results.decompileCompleted():
+        raise RuntimeError("Failed to decompile")
+
+    if decomp_results.getErrorMessage() != "":
+        raise RuntimeError("Failed to decompile")
+
+    high_func = decomp_results.getHighFunction()
+    lsm = high_func.getLocalSymbolMap()
+    symbols = [v for v in lsm.getSymbols()]
+    func_return = high_func.getFunctionPrototype().getReturnType()
+
+    name: str = ghidra_func.getName()
+
+    return_type = TypeLib.parse_ghidra_type(func_return)
+
+    arguments = collect_variables(
+        [v for v in symbols if v.isParameter()],
+    )
+    local_vars = collect_variables(
+        [v for v in symbols if not v.isParameter()],
+    )
+
+    raw_code = decomp_results.getCCodeMarkup().toString()
+
+    decompiler = Function(
+        ast=None,
+        name=name,
+        return_type=return_type,
+        arguments=arguments,
+        local_vars=local_vars,
+        raw_code=raw_code,
+    )
+
+    cf = CollectedFunction(
+        ea=ghidra_func.getEntryPoint().toString(),
+        debug=None,
+        decompiler=decompiler,
+    )
+
+    return cf
 
 def infer(config, model, cf, binary_file=None):
 
