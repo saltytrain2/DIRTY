@@ -10,8 +10,9 @@ from collections import defaultdict
 
 from typing import Optional
 
-from utils.ghidra_function import CollectedFunction
-from utils.ghidra_types import TypeLib, TypeInfo, Location, Stack, Register, Variable, Function
+from utils.ghidra_function import Function, CollectedFunction
+from utils.ghidra_types import TypeLib, TypeInfo
+from utils.ghidra_variable import Location, Stack, Register, Variable
 from utils.dataset import Example, Dataset
 from utils.code_processing import canonicalize_code
 
