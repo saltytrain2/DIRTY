@@ -92,7 +92,13 @@ class Example:
             else:
                 source[k] = v
         if hasattr(cf.debug, "local_vars"):
-            target = {**cf.debug.local_vars, **cf.debug.arguments}
+            target = {**cf.debug.local_vars}
+            for k, v in cf.debug.arguments.items():
+                # v is a set
+                if k in target:
+                    target[k].update(v)
+                else:
+                    target[k] = v
         else:
             target = {}
 
