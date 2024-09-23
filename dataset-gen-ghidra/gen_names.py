@@ -9,17 +9,19 @@ def main(argv):
     bins_set = set()
 
     for file in os.listdir(f"{argv[0]}/bins"):
-        bins_set.add(file[:file.index("_")])
+        file = file.replace(".jsonl.gz", "")
+        bins_set.add(file)
 
     for file in os.listdir(f"{argv[0]}/types"):
-        types_set.add(file[:file.index("_")])
-    
+        file = file.replace(".json.gz", "")
+        types_set.add(file)
+
     bin_files = list(set.intersection(types_set, bins_set))
     print(len(bin_files))
 
     with open("files.txt", "w") as dataset_file:
         for file in bin_files:
-            dataset_file.write(f"{file}_{file}.jsonl.gz\n")
+            dataset_file.write(f"{file}.jsonl.gz\n")
     pass
 
 
