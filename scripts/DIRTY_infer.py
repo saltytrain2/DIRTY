@@ -309,7 +309,7 @@ if not isRunningHeadless():
 
     assert ghidra_function is not None
 
-    cf = dump(ghidra_function)
+    cf = utils.infer.ghidra_obtain_cf(ghidra_function)
     do_infer(cf, ghidra_function)
 
 else:
