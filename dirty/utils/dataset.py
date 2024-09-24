@@ -28,6 +28,7 @@ class Example:
         raw_code: str = "",
         test_meta: Dict[str, Dict[str, bool]] = None,
         binary: str = None,
+        other_info = None,
     ):
         self.name = name
         self.code_tokens = code_tokens
@@ -38,6 +39,7 @@ class Example:
         self.raw_code = raw_code
         self.test_meta = test_meta
         self.binary = binary
+        self.other_info = other_info
 
     @classmethod
     def from_json(cls, d: Dict):
@@ -106,9 +108,11 @@ class Example:
         source_code_tokens_set = set(code_tokens[code_tokens.index("{"):])
         #target_code_tokens_set = set(tokenize_raw_code(cf.debug.raw_code))
 
-        source = Example.filter(source, source_code_tokens_set)
+        print(f"{name} source: {source} target: {target}")
+
+        source, source_filtered = Example.filter(source, source_code_tokens_set)
         # target = Example.filter(target, target_code_tokens_set, set(source.keys()))
-        target = Example.filter(target, None, set(source.keys()))
+        target, target_filtered = Example.filter(target, None, set(source.keys()))
 
         # Assign type "Disappear" to variables not existing in the ground truth
         varnames = set()
@@ -123,6 +127,11 @@ class Example:
             if code_tokens[idx] in varnames:
                 code_tokens[idx] = f"@@{code_tokens[idx]}@@"
 
+        other_info = {
+            'source_filtered': source_filtered,
+            'target_filtered': target_filtered,
+        }
+
         return cls(
             name,
             code_tokens,
@@ -131,6 +140,7 @@ class Example:
             kwargs["binary_file"],
             valid=source and "halt_baddata" not in source_code_tokens_set,
             raw_code=raw_code,
+            other_info=other_info
         )
 
     @staticmethod
@@ -146,7 +156,11 @@ class Example:
         Target variables not appearing in source (useless ground truth);
         """
         ret: Mapping[Location, Set[Variable]] = {}
+
+        filtered = set()
+
         for location, variable_set in mapping.items():
+            filtered.update(variable_set)
             if len(variable_set) > 1:
                 print(f"Warning: Ignoring location {location} with multiple variables {variable_set}")
                 continue
@@ -155,8 +169,9 @@ class Example:
                 continue
             if locations is not None and not location in locations:
                 continue
+            filtered.remove(var)
             ret[location] = var
-        return ret
+        return ret, [x.name for x in filtered]
 
     @property
     def is_valid_example(self):

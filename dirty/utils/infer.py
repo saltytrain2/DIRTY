@@ -146,10 +146,9 @@ def infer(config, model, cf, binary_file=None):
     pred_names = output['rename_preds']
     pred_types = output['retype_preds']
 
-    output = {oldname: (newtype, newname) for (oldname, newname, newtype) in zip(var_names, pred_names, pred_types)}
+    model_output = {oldname: (newtype, newname) for (oldname, newname, newtype) in zip(var_names, pred_names, pred_types)}
 
-    return output
-
+    return model_output, example.other_info
 
 def main(args):
 
