@@ -160,7 +160,8 @@ class Example:
         filtered = set()
 
         for location, variable_set in mapping.items():
-            filtered.update(variable_set)
+            for v in variable_set:
+                filtered.add((location, v))
             if len(variable_set) > 1:
                 print(f"Warning: Ignoring location {location} with multiple variables {variable_set}")
                 continue
@@ -169,9 +170,9 @@ class Example:
                 continue
             if locations is not None and not location in locations:
                 continue
-            filtered.remove(var)
+            filtered.remove((location, var))
             ret[location] = var
-        return ret, [x.name for x in filtered]
+        return ret, {x.name: loc.json_key() for loc, x in filtered}
 
     @property
     def is_valid_example(self):
