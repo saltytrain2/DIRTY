@@ -29,6 +29,7 @@ class Runner(object):
         self._num_files = args.num_files
         self.verbose = args.verbose
         self.num_threads = args.num_threads
+        self.timeout = args.timeout
 
         self.env = os.environ.copy()
 
@@ -193,12 +194,12 @@ class Runner(object):
                 else:
                     # Collect from original
                     subprocess.check_output(["cp", file_path, orig.name])
-                    # Timeout after 30s for the collect run
+
                     var_set = self.extract_dwarf_var_names(os.path.join(path, orig.name))
                     if var_set:
                         pickle_file = os.path.join(path, orig.name) + ".p"
                         pickle.dump(var_set, open(pickle_file, 'wb'))
-                        self.run_decompiler(new_env, path, os.path.join(path, orig.name), self.COLLECT, timeout=180)
+                        self.run_decompiler(new_env, path, os.path.join(path, orig.name), self.COLLECT, timeout=self.timeout)
                         os.remove(pickle_file)
                     else:
                         if self.verbose:
@@ -207,7 +208,7 @@ class Runner(object):
                 pickle_file = os.path.join(path, stripped.name) + ".p"
                 pickle.dump(set(), open(pickle_file, 'wb'))
                 self.run_decompiler(
-                    new_env, path, os.path.join(path, stripped.name), self.DUMP_TREES, timeout=200
+                    new_env, path, os.path.join(path, stripped.name), self.DUMP_TREES, timeout=self.timeout
                 )
                 os.remove(pickle_file)
 
@@ -258,6 +259,13 @@ def main():
         metavar='BINARIES_DIR',
         help='directory containing binaries',
         required=True
+    )
+    parser.add_argument(
+        "--timeout",
+        metavar="TIMEOUT",
+        help="timeout for each binary",
+        default=30*60,
+        type=int
     )
     parser.add_argument(
         "-o", "--output_dir", metavar="OUTPUT_DIR", help="output directory", required=True,
