@@ -115,6 +115,7 @@ class Runner(object):
             p = subprocess.Popen(ghidracall, env=env, start_new_session=True)
             p.wait(timeout=timeout)
         except subprocess.TimeoutExpired as e:
+            print(f"Timed out while running {ghidracall}")
             os.killpg(os.getpgid(p.pid), signal.SIGTERM)
             subprocess.run(f"rm -r {path_to_dir}/__*", shell=True)
         except subprocess.CalledProcessError as e:
