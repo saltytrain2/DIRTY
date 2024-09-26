@@ -4,10 +4,12 @@ Usage:
     vocab.py [options] TRAIN_FILE TYPE_FILE VOCAB_FILE
 
 Options:
-    -h --help                  Show this screen.
-    --use-bpe                  Use bpe
-    --size=<int>               vocab size [default: 10000]
-    --freq-cutoff=<int>        frequency cutoff [default: 5]
+    -h --help                    Show this screen.
+    --use-bpe                    Use bpe
+    --size=<int>                 vocab size [default: 15000]
+    --character-coverage=<fl>    character coverage [default: 0.9995]
+    --freq-cutoff=<int>          frequency cutoff [default: 5]
+    --make-tokens-for-ids        Make tokens for ids (only use for IDA)
 """
 
 from collections import Counter
@@ -228,6 +230,8 @@ if __name__ == "__main__":
 
     args = docopt(__doc__)
     vocab_size = int(args["--size"])
+    character_coverage = float(args["--character-coverage"])
+    make_tokens_for_ids = args["--make-tokens-for-ids"]
     vocab_file = args["VOCAB_FILE"]
     type_file = args["TYPE_FILE"]
     train_set = Dataset(args["TRAIN_FILE"])
@@ -256,7 +260,7 @@ if __name__ == "__main__":
     )
 
     src_code_tokens_file = vocab_file + ".src_code_tokens.txt"
-    preserved_tokens = set()
+    identifier_names = set()
     name_counter = Counter()
     reg_counter = Counter()
     with open(src_code_tokens_file, "w") as f_src_token:
@@ -272,7 +276,7 @@ if __name__ == "__main__":
             name_counter.update(map(lambda x: x.name, example.target.values()))
             for token in code_tokens:
                 if token.startswith("@@") and token.endswith("@@"):
-                    preserved_tokens.add(token)
+                    identifier_names.add(token)
             f_src_token.write(" ".join(code_tokens) + "\n")
     name_vocab_entry = VocabEntry.from_counter(
         name_counter, size=len(name_counter), freq_cutoff=int(args["--freq-cutoff"])
@@ -281,16 +285,29 @@ if __name__ == "__main__":
         reg_counter, size=len(reg_counter), freq_cutoff=int(args["--freq-cutoff"])
     )
 
-    assert args["--use-bpe"]
-    print("use bpe")
+    assert args["--use-bpe"], "Please use BPE for tokenization"
 
     print("building source code tokens vocabulary")
     # train subtoken models
-    preserved_tokens = ",".join(preserved_tokens)
+
+    if args["--make-tokens-for-ids"]:
+        identifier_names = ",".join(identifier_names)
+    else:
+        identifier_names = ""
+
+    # DIRTY for Hex-Rays made each source variable identifier a preserved token.
+    # Since the identifiers were mainly a1, a2, v1, v2, etc., this was fine.
+    # But Ghidra likes to preface addresses and offsets to automatic variable
+    # names, e.g., local_8110, so we SHOULD use subwords for these.  If we have
+    # more than 1000 preserved tokens, its a sign that something has gone wrong.
+    print(f"There are {len(identifier_names)} preserved tokens (variable names)")
+    assert len(identifier_names) < 1000, "There are too many preserved tokens.  If you used --make-tokens-for-ids, turn it off.  If you did not, please file a bug report."
+
     spm.SentencePieceTrainer.Train(
         f"--add_dummy_prefix=false --pad_id={PAD_ID} --bos_id=1 --eos_id=2 --unk_id=3 "
-        f"--user_defined_symbols={preserved_tokens} "
+        f"--user_defined_symbols={identifier_names} "
         f"--vocab_size={vocab_size} "
+        f"--character_coverage={character_coverage} "
         f"--model_prefix={vocab_file}.src_code_tokens --model_type=bpe "
         f"--input={src_code_tokens_file}"
     )
