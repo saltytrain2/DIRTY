@@ -108,8 +108,6 @@ class Example:
         source_code_tokens_set = set(code_tokens[code_tokens.index("{"):])
         #target_code_tokens_set = set(tokenize_raw_code(cf.debug.raw_code))
 
-        print(f"{name} source: {source} target: {target}")
-
         source, source_filtered = Example.filter(source, source_code_tokens_set)
         # target = Example.filter(target, target_code_tokens_set, set(source.keys()))
         target, target_filtered = Example.filter(target, None, set(source.keys()))
