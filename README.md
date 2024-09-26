@@ -44,7 +44,7 @@ these with:
 ## Training a DIRTY model
 
 ### Dataset Generation
-The first step to train DIRTY is to obtain a unprocessed DIRT dataset. Instructions can be found in the `dataset-gen-ghidra` folder.
+The first step to train DIRTY is to obtain a unprocessed DIRT dataset. Instructions can be found in the [dataset-gen-ghidra](dataset-gen-ghidra) folder.
 
 ### Dataset Preprocessing
 
