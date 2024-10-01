@@ -39,7 +39,7 @@ types for their own binaries.  If that is you, follow these instructions:
 
 A few libraries are required by the python packages.  On ubuntu, you can install
 these with:
-- `apt install pkg-config libsentencepiece-dev`
+- `apt install pkg-config libsentencepiece-dev libprotobuf-dev`
 
 ## Training a DIRTY model
 
