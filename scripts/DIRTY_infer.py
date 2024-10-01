@@ -24,8 +24,6 @@ import tqdm
 
 DIRTY_PATH = pathlib.Path(os.path.realpath(__file__)).parent.parent.resolve()
 
-# DIRTY_PATH = "/home/ed/Projects/DIRTY/DIRTY-ghidra"
-
 TYPELIB_PATH = os.path.join(DIRTY_PATH, "dirty", "data1", "typelib_complete.json")
 
 DIRTY_CONFIG = os.path.join(DIRTY_PATH, "dirty", "multitask.xfmr.jsonnet")
