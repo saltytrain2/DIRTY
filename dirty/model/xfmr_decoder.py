@@ -464,7 +464,7 @@ class XfmrInterleaveDecoder(XfmrDecoder):
             context_encoding["variable_encoding"], context_encoding["variable_encoding"]
         )
         tgt_padding_mask = XfmrInterleaveDecoder.interleave_2d(
-            input_dict["target_mask"], input_dict["target_mask"]
+            input_dict["src_type_mask"], input_dict["src_type_mask"]
         )
         batch_size, max_time_step, _ = variable_encoding.shape
         tgt = torch.zeros(batch_size, 1, self.config["target_embedding_size"]).to(
@@ -480,7 +480,7 @@ class XfmrInterleaveDecoder(XfmrDecoder):
             mem_logits_list = []
             idx = 0
             for b in range(batch_size):
-                nvar = input_dict["target_mask"][b].sum().item()
+                nvar = input_dict["src_type_mask"][b].sum().item()
                 mem_logits_list.append(mem_logits[idx : idx + nvar])
                 idx += nvar
             assert idx == mem_logits.shape[0]
@@ -550,8 +550,8 @@ class XfmrInterleaveDecoder(XfmrDecoder):
         type_preds = torch.stack(type_preds_list).transpose(0, 1)
         name_preds = torch.stack(name_preds_list).transpose(0, 1)
         return (
-            type_preds[input_dict["target_mask"]],
-            name_preds[input_dict["target_mask"]],
+            type_preds[input_dict["src_type_mask"]],
+            name_preds[input_dict["src_type_mask"]],
         )
 
     def beam_decode(

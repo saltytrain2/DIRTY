@@ -28,12 +28,12 @@ class RenamingDecodeModule(pl.LightningModule):
     def training_step(self, input_dict, context_encoding, target_dict):
         variable_name_logits = self.decoder(context_encoding, target_dict)
         if self.soft_mem_mask:
-            variable_name_logits = variable_name_logits[target_dict["target_mask"]]
+            variable_name_logits = variable_name_logits[target_dict["target_type_mask"]]
             mem_encoding = self.mem_encoder(input_dict)
             mem_logits = self.mem_decoder(mem_encoding, target_dict)
             loss = F.cross_entropy(
                 variable_name_logits + mem_logits,
-                target_dict["target_name_id"][target_dict["target_mask"]],
+                target_dict["target_name_id"][target_dict["target_type_mask"]],
                 reduction="none",
             )
         else:
@@ -43,18 +43,18 @@ class RenamingDecodeModule(pl.LightningModule):
                 target_dict["target_name_id"],
                 reduction="none",
             )
-            loss = loss[target_dict["target_mask"]]
+            loss = loss[target_dict["target_type_mask"]]
         return loss.mean()
 
     def shared_eval_step(self, context_encoding, input_dict, target_dict, test=False):
         variable_name_logits = self.decoder(context_encoding, target_dict)
         if self.soft_mem_mask:
-            variable_name_logits = variable_name_logits[input_dict["target_mask"]]
+            variable_name_logits = variable_name_logits[input_dict["src_type_mask"]]
             mem_encoding = self.mem_encoder(input_dict)
             mem_logits = self.mem_decoder(mem_encoding, target_dict)
             loss = F.cross_entropy(
                 variable_name_logits + mem_logits,
-                target_dict["target_name_id"][input_dict["target_mask"]],
+                target_dict["target_name_id"][input_dict["src_type_mask"]],
                 reduction="none",
             )
         else:
@@ -63,8 +63,8 @@ class RenamingDecodeModule(pl.LightningModule):
                 target_dict["target_name_id"],
                 reduction="none",
             )
-            loss = loss[input_dict["target_mask"]]
-        targets = target_dict["target_name_id"][input_dict["target_mask"]]
+            loss = loss[input_dict["src_type_mask"]]
+        targets = target_dict["target_name_id"][input_dict["src_type_mask"]]
         preds = self.decoder.predict(
             context_encoding, input_dict, None, self.beam_size if test else 0
         )
@@ -92,12 +92,12 @@ class RetypingDecodeModule(pl.LightningModule):
     def training_step(self, input_dict, context_encoding, target_dict):
         variable_type_logits = self.decoder(context_encoding, target_dict)
         if self.soft_mem_mask:
-            variable_type_logits = variable_type_logits[target_dict["target_mask"]]
+            variable_type_logits = variable_type_logits[target_dict["target_type_mask"]]
             mem_encoding = self.mem_encoder(input_dict)
             mem_type_logits = self.mem_decoder(mem_encoding, target_dict)
             loss = F.cross_entropy(
                 variable_type_logits + mem_type_logits,
-                target_dict["target_type_id"][target_dict["target_mask"]],
+                target_dict["target_type_id"][target_dict["target_type_mask"]],
                 reduction="none",
             )
         else:
@@ -111,7 +111,7 @@ class RetypingDecodeModule(pl.LightningModule):
             loss = loss[
                 target_dict["target_submask"]
                 if self.subtype
-                else target_dict["target_mask"]
+                else target_dict["target_type_mask"]
             ]
 
         return loss.mean()
@@ -119,13 +119,13 @@ class RetypingDecodeModule(pl.LightningModule):
     def shared_eval_step(self, context_encoding, input_dict, target_dict, test=False):
         variable_type_logits = self.decoder(context_encoding, target_dict)
         if self.soft_mem_mask:
-            variable_type_logits = variable_type_logits[input_dict["target_mask"]]
+            variable_type_logits = variable_type_logits[input_dict["src_type_mask"]]
             mem_encoding = self.mem_encoder(input_dict)
             mem_type_logits = self.mem_decoder(mem_encoding, target_dict)
             loss = F.cross_entropy(
                 # cross_entropy requires num_classes at the second dimension
                 variable_type_logits + mem_type_logits,
-                target_dict["target_type_id"][input_dict["target_mask"]],
+                target_dict["target_type_id"][input_dict["src_type_mask"]],
                 reduction="none",
             )
         else:
@@ -140,9 +140,9 @@ class RetypingDecodeModule(pl.LightningModule):
             loss = loss[
                 target_dict["target_submask"]
                 if self.subtype
-                else target_dict["target_mask"]
+                else target_dict["target_type_mask"]
             ]
-        targets = target_dict["target_type_id"][input_dict["target_mask"]]
+        targets = target_dict["target_type_id"][input_dict["src_type_mask"]]
         preds = self.decoder.predict(
             context_encoding, input_dict, None, self.beam_size if test else 0
         )
@@ -172,12 +172,12 @@ class InterleaveDecodeModule(pl.LightningModule):
         )
         # Retype
         if self.soft_mem_mask:
-            variable_type_logits = variable_type_logits[target_dict["target_mask"]]
+            variable_type_logits = variable_type_logits[target_dict["target_type_mask"]]
             mem_encoding = self.mem_encoder(input_dict)
             mem_type_logits = self.mem_decoder(mem_encoding, target_dict)
             retype_loss = F.cross_entropy(
                 variable_type_logits + mem_type_logits,
-                target_dict["target_type_id"][target_dict["target_mask"]],
+                target_dict["target_type_id"][target_dict["target_type_mask"]],
                 reduction="none",
             )
         else:
@@ -186,7 +186,7 @@ class InterleaveDecodeModule(pl.LightningModule):
                 target_dict["target_type_id"],
                 reduction="none",
             )
-            retype_loss = retype_loss[target_dict["target_mask"]]
+            retype_loss = retype_loss[target_dict["target_type_mask"]]
         retype_loss = retype_loss.mean()
 
         rename_loss = F.cross_entropy(
@@ -195,7 +195,7 @@ class InterleaveDecodeModule(pl.LightningModule):
             target_dict["target_name_id"],
             reduction="none",
         )
-        rename_loss = rename_loss[target_dict["target_mask"]].mean()
+        rename_loss = rename_loss[target_dict["target_type_mask"]].mean()
 
         return retype_loss, rename_loss
 
@@ -204,7 +204,7 @@ class InterleaveDecodeModule(pl.LightningModule):
 
     def get_unmasked_logits(self, context_encoding, input_dict, target_dict):
         variable_type_logits, _ = self.decoder(context_encoding, target_dict)
-        variable_type_logits = variable_type_logits[target_dict["target_mask"]]
+        variable_type_logits = variable_type_logits[target_dict["target_type_mask"]]
         # mem_encoding = self.mem_encoder(input_dict)
         # return self.mem_decoder(mem_encoding, target_dict) + variable_type_logits
         return variable_type_logits.argmax(dim=1)
@@ -228,7 +228,7 @@ class InterleaveDecodeModule(pl.LightningModule):
                 target_dict["target_type_id"],
                 reduction="none",
             )
-            retype_loss = retype_loss[target_dict["target_mask"]]
+            retype_loss = retype_loss[target_dict["target_type_mask"]]
 
         rename_loss = F.cross_entropy(
             variable_name_logits.transpose(1, 2),
