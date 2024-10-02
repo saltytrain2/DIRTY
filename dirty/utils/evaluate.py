@@ -248,7 +248,7 @@ def evaluate(dataset, results, type_metrics, name_metrics):
             # Note: This is why accuracy metrics slightly differ from the
             # prediction step.
 
-            if src_name != tgt_name and tgt_name != "@@@@":
+            if src_name != tgt_name and tgt_name != "@@@@" and tgt_name != "@@disappear@@":
                 # only report need_rename
                 _, pred_name = (
                     results.get(example.binary, {})

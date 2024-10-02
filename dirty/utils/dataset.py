@@ -116,8 +116,8 @@ class Example:
         varnames = set()
         for loc in source.keys():
             if loc not in target.keys():
-                target[loc] = Variable(Disappear(), "", False)
-        # Add special tokens to variables  to prevnt being sub-tokenized in BPE
+                target[loc] = Variable(Disappear(), "disappear", False)
+        # Add special tokens to variables to prevent being sub-tokenized in BPE
         for var in source.values():
             varname = var.name
             varnames.add(varname)
