@@ -205,7 +205,8 @@ def evaluate(dataset, results, type_metrics, name_metrics):
     pred_names, ref_names, pred_types, ref_types = [], [], [], []
     test_meta_types, test_meta_names = [], []
     examples_w_structs = []
-    num_functions, num_all_disappear, num_no_disappear = 0, 0, 0
+    num_functions, num_all_disappear, num_no_disappear, num_filtered_variables = 0, 0, 0, 0
+
     for example in tqdm(dataset):
         # one example is one function: check if all variables are disappear or if all variables are actual variables
         all_disappear = True
@@ -257,8 +258,9 @@ def evaluate(dataset, results, type_metrics, name_metrics):
                 pred_names.append(pred_name)
                 ref_names.append(tgt_name[2:-2])
                 test_meta_names.append(test_meta)
-            #else:
-            #    print(f"Warning: Skipping {src_name} {tgt_name}")
+            else:
+                num_filtered_variables += 1
+                #print(f"Warning: Skipping {src_name} {tgt_name}")
     pred_types = np.array(pred_types, dtype=object)
     ref_types = np.array(ref_types, dtype=object)
 
@@ -274,7 +276,9 @@ def evaluate(dataset, results, type_metrics, name_metrics):
 
     wandb.log(
         {
-            "total variables": len(test_meta_types),
+            "total variables with types": len(test_meta_types),
+            "total variables with names": len(test_meta_names),
+            "filtered variables names": num_filtered_variables,
             "num structs": struct_counter,
             "num disappear": disappear_counter
         }
