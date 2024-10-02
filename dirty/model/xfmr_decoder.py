@@ -118,6 +118,7 @@ class XfmrDecoder(nn.Module):
         input_dict: Dict[str, torch.Tensor],
         variable_type_logits: torch.Tensor,
         beam_size: int = 0,
+        return_non_best: bool = False,
     ):
         if beam_size == 0:
             return self.greedy_decode(
@@ -125,7 +126,8 @@ class XfmrDecoder(nn.Module):
             )
         else:
             return self.beam_decode(
-                context_encoding, input_dict, variable_type_logits, beam_size
+                context_encoding, input_dict, variable_type_logits, beam_size,
+                return_non_best=return_non_best
             )
 
     def greedy_decode(
@@ -561,6 +563,7 @@ class XfmrInterleaveDecoder(XfmrDecoder):
         #variable_type_logits: torch.Tensor,
         beam_size: int = 5,
         length_norm: bool = True,
+        return_non_best: bool = False
     ):
         """Beam search decoding"""
 
@@ -674,14 +677,36 @@ class XfmrInterleaveDecoder(XfmrDecoder):
                 tgt = torch.cat([tgt, tgt_step], dim=1)
 
         all_type_hyps, all_name_hyps, all_scores = [], [], []
+        # include non-best hypotheses
+        all_nonbest_type_hups, all_nonbest_name_hyps = [], []
         for j in range(batch_size):
             b = beams[j]
             scores, ks = b.sortFinished(minimum=beam_size)
-            times, k = ks[0]
-            hyp = b.getHyp(times, k)
-            hyp = torch.tensor(hyp).view(-1, 2).t()
+
+            def get(i):
+                times, k = ks[i]
+                hyp = b.getHyp(times, k)
+                hyp = torch.tensor(hyp).view(-1, 2).t()
+                return hyp
+
+            hyp = get(0)
+
             all_type_hyps.append(hyp[0])
             all_name_hyps.append(hyp[1])
             all_scores.append(scores[0])
 
-        return torch.cat(all_type_hyps), torch.cat(all_name_hyps)
+            if return_non_best:
+                all_hyps = (get(i) for i in range(beam_size))
+                all_hyps = ((tup[0], tup[1]) for tup in all_hyps)
+                all_hyps = zip(*all_hyps)
+                all_hyps = tuple([torch.stack(x) for x in all_hyps])
+                all_nonbest_type_hups.append(all_hyps[0])
+                all_nonbest_name_hyps.append(all_hyps[1])
+
+                import ipdb
+                ipdb.set_trace()
+
+        if return_non_best:
+            return torch.cat(all_type_hyps), torch.cat(all_name_hyps), torch.cat(all_nonbest_type_hups), torch.cat(all_nonbest_name_hyps)
+        else:
+            return torch.cat(all_type_hyps), torch.cat(all_name_hyps)

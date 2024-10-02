@@ -138,7 +138,7 @@ def infer(config, model, cf, binary_file=None):
     #print(wat)
 
     with torch.no_grad():
-        output = model(collated_example)
+        output = model(collated_example, return_non_best=True)
 
     var_names = [x[2:-2] for x in example.src_var_names]
     var_types = example.src_var_types_str
