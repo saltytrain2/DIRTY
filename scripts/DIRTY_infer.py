@@ -240,7 +240,7 @@ def do_infer(cf, ghidra_function, redecompile=False):
             new_type_name, new_name = model_output[original_name]
             if new_type_name != "disappear":
 
-                if new_name in ["<unk>", ""]:
+                if new_name in ["<unk>", "", "disappear"]:
                     new_name = original_name
 
                 if new_name != original_name:
