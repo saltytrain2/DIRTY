@@ -148,7 +148,9 @@ def infer(config, model, cf, binary_file=None):
 
     model_output = {oldname: (newtype, newname) for (oldname, newname, newtype) in zip(var_names, pred_names, pred_types)}
 
-    return model_output, example.other_info
+    other_outputs = {k:v for k,v in output.items() if k not in ["rename_preds", "retype_preds"]}
+
+    return model_output, example.other_info, other_outputs
 
 def main(args):
 
