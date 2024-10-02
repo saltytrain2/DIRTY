@@ -364,6 +364,6 @@ else:
                 # break
             except Exception as e:
                 print(
-                    f"{ghidra_function} because {e.__class__.__name__}: {str(e)}, trying next function"
+                    f"{ghidra_function} failed because {e.__class__.__name__}: {str(e)}, trying next function"
                 )
                 continue

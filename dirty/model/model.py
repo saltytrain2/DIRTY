@@ -394,7 +394,7 @@ class TypeReconstructionModel(pl.LightningModule):
         }
 
         if return_non_best:
-            ret = ret.update({
+            ret.update({
                 "all_retype_preds": all_retype_reds,
                 "all_rename_preds": all_rename_preds,
             })
