@@ -705,9 +705,6 @@ class XfmrInterleaveDecoder(XfmrDecoder):
                 all_nonbest_type_hups.append(all_hyps[0])
                 all_nonbest_name_hyps.append(all_hyps[1])
 
-                import ipdb
-                ipdb.set_trace()
-
         if return_non_best:
             return torch.cat(all_type_hyps), torch.cat(all_name_hyps), torch.cat(all_nonbest_type_hups), torch.cat(all_nonbest_name_hyps)
         else:
