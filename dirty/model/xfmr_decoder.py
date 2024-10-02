@@ -444,14 +444,16 @@ class XfmrInterleaveDecoder(XfmrDecoder):
         input_dict: Dict[str, torch.Tensor],
         #variable_type_logits: torch.Tensor,
         beam_size: int = 0,
+        return_non_best: bool = False
     ):
+
         if beam_size == 0:
             return self.greedy_decode(
                 context_encoding, input_dict
             )
         else:
             return self.beam_decode(
-                context_encoding, input_dict, beam_size
+                context_encoding, input_dict, beam_size, return_non_best=return_non_best
             )
 
     def greedy_decode(
