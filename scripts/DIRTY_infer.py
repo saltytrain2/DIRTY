@@ -342,6 +342,9 @@ else:
             json.dump(json_output, open(outfile, "w"))
         except Exception as e:
             json_output = {"exception": str(e)}
+            print(
+                f"{targetFunAddr} failed because {e.__class__.__name__}: {str(e)}"
+            )
             json.dump(json_output, open(outfile, "w"))
 
     else:  # CI mode
