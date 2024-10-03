@@ -209,10 +209,11 @@ def do_infer(cf, ghidra_function, redecompile=False):
     )
     model.eval()
 
-    model_output, other_info = utils.infer.infer(config, model, cf)
+    model_output, model_output_multi, example_info, other_outputs = utils.infer.infer(config, model, cf)
 
     output['model_output'] = model_output
-    output['other_info'] = other_info
+    output['model_output_multi'] = model_output_multi
+    output['other_info'] = {'example_info': example_info, 'other_outputs': other_outputs}
 
     # Set up the decompiler
     decompiler = DecompInterface()
@@ -342,6 +343,9 @@ else:
             json.dump(json_output, open(outfile, "w"))
         except Exception as e:
             json_output = {"exception": str(e)}
+            print(
+                f"{targetFunAddr} failed because {e.__class__.__name__}: {str(e)}"
+            )
             json.dump(json_output, open(outfile, "w"))
 
     else:  # CI mode
@@ -364,6 +368,6 @@ else:
                 # break
             except Exception as e:
                 print(
-                    f"{ghidra_function} because {e.__class__.__name__}: {str(e)}, trying next function"
+                    f"{ghidra_function} failed because {e.__class__.__name__}: {str(e)}, trying next function"
                 )
                 continue

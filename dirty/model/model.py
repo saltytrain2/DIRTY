@@ -199,8 +199,8 @@ class InterleaveDecodeModule(pl.LightningModule):
 
         return retype_loss, rename_loss
 
-    def forward(self, context_encoding, input_dict):
-        return self.decoder.predict(context_encoding, input_dict, self.beam_size)
+    def forward(self, context_encoding, input_dict, **kwargs):
+        return self.decoder.predict(context_encoding, input_dict, self.beam_size, **kwargs)
 
     def get_unmasked_logits(self, context_encoding, input_dict, target_dict):
         variable_type_logits, _ = self.decoder(context_encoding, target_dict)
@@ -366,11 +366,11 @@ class TypeReconstructionModel(pl.LightningModule):
             tgt_var_names=target_dict["tgt_var_names"],
         )
     
-    def forward(self, batch):
+    def forward(self, batch, return_non_best=False):
         input_dict = batch
         context_encoding = self.encoder(input_dict)
         if self.interleave:
-            ret = self.interleave_module(context_encoding, input_dict)
+            ret = self.interleave_module(context_encoding, input_dict, return_non_best=return_non_best)
         else:
             if self.retype:
                 ret = self.retyping_module(context_encoding, input_dict)
@@ -379,15 +379,38 @@ class TypeReconstructionModel(pl.LightningModule):
             else:
                 assert False
 
-        retype_preds, rename_preds = ret
+        if return_non_best:
+            retype_preds, rename_preds, all_retype_preds, all_rename_preds = ret
+        else:
+            retype_preds, rename_preds = ret
+
         retype_preds_name = [self.vocab.types.id2word[x.item()] for x in retype_preds]
 
         rename_preds_name = [self.vocab.names.id2word[x.item()] for x in rename_preds]
 
-        return {
+        ret = {
             "retype_preds": retype_preds_name,
             "rename_preds": rename_preds_name,
         }
+
+        if return_non_best:
+
+            all_retype_preds_names = [
+                [self.vocab.types.id2word[prediction.item()] for prediction in predictions] 
+                for predictions in all_retype_preds
+            ]
+
+            all_rename_preds_names = [
+                [self.vocab.names.id2word[prediction.item()] for prediction in predictions]
+                for predictions in all_rename_preds
+            ]
+
+            ret.update({
+                "all_retype_preds": all_retype_preds_names,
+                "all_rename_preds": all_rename_preds_names,
+            })
+
+        return ret
 
     def validation_epoch_end(self, outputs):
         self._shared_epoch_end(outputs, "val")
