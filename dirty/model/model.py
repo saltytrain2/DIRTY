@@ -380,7 +380,7 @@ class TypeReconstructionModel(pl.LightningModule):
                 assert False
 
         if return_non_best:
-            retype_preds, rename_preds, all_retype_reds, all_rename_preds = ret
+            retype_preds, rename_preds, all_retype_preds, all_rename_preds = ret
         else:
             retype_preds, rename_preds = ret
 
@@ -394,9 +394,20 @@ class TypeReconstructionModel(pl.LightningModule):
         }
 
         if return_non_best:
+
+            all_retype_preds_names = [
+                [self.vocab.types.id2word[prediction.item()] for prediction in predictions] 
+                for predictions in all_retype_preds
+            ]
+
+            all_rename_preds_names = [
+                [self.vocab.names.id2word[prediction.item()] for prediction in predictions]
+                for predictions in all_rename_preds
+            ]
+
             ret.update({
-                "all_retype_preds": all_retype_reds,
-                "all_rename_preds": all_rename_preds,
+                "all_retype_preds": all_retype_preds_names,
+                "all_rename_preds": all_rename_preds_names,
             })
 
         return ret

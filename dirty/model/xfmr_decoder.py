@@ -680,7 +680,7 @@ class XfmrInterleaveDecoder(XfmrDecoder):
 
         all_type_hyps, all_name_hyps, all_scores = [], [], []
         # include non-best hypotheses
-        all_nonbest_type_hups, all_nonbest_name_hyps = [], []
+        all_nonbest_type_hyps, all_nonbest_name_hyps = [], []
         for j in range(batch_size):
             b = beams[j]
             scores, ks = b.sortFinished(minimum=beam_size)
@@ -701,11 +701,11 @@ class XfmrInterleaveDecoder(XfmrDecoder):
                 all_hyps = (get(i) for i in range(beam_size))
                 all_hyps = ((tup[0], tup[1]) for tup in all_hyps)
                 all_hyps = zip(*all_hyps)
-                all_hyps = tuple([torch.stack(x) for x in all_hyps])
-                all_nonbest_type_hups.append(all_hyps[0])
+                all_hyps = tuple(torch.cat(x) for x in all_hyps)
+                all_nonbest_type_hyps.append(all_hyps[0])
                 all_nonbest_name_hyps.append(all_hyps[1])
 
         if return_non_best:
-            return torch.cat(all_type_hyps), torch.cat(all_name_hyps), torch.cat(all_nonbest_type_hups), torch.cat(all_nonbest_name_hyps)
+            return torch.cat(all_type_hyps), torch.cat(all_name_hyps), torch.stack(all_nonbest_type_hyps), torch.stack(all_nonbest_name_hyps)
         else:
             return torch.cat(all_type_hyps), torch.cat(all_name_hyps)
