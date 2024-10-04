@@ -1,14 +1,13 @@
 import gzip
-import pickle
 import os
 
 from collections import defaultdict
-from typing import DefaultDict, Dict, Iterable, Optional, Set
+from typing import DefaultDict, Iterable, Optional, Set
 
-from ghidra_function import Function
 from ghidra_types import TypeInfo, TypeLib, TypeLibCodec
 from ghidra_variable import Location, Stack, Register, Variable
 
+import ghidra.program.model.symbol
 
 class Collector:
     """Generic class to collect information from a binary"""
@@ -54,13 +53,18 @@ class Collector:
             loc: Optional[Location] = None
             storage = v.getStorage()
 
+            has_user_info = False
+            low_symbol = v.getSymbol()
+            if low_symbol is not None and low_symbol.getSource() in [ghidra.program.model.symbol.SourceType.IMPORTED, ghidra.program.model.symbol.SourceType.USER_DEFINED]:
+                has_user_info = True
+
             if storage.isStackStorage():
                 loc = Stack(storage.getStackOffset())
             if storage.isRegisterStorage():
                 loc = Register(storage.getRegister().getName())
             if loc is not None:
                 collected_vars[loc].add(
-                    Variable(typ=typ, name=v.getName(), user=False)
+                    Variable(typ=typ, name=v.getName(), user=has_user_info)
                 )
         return collected_vars
 
