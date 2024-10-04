@@ -112,13 +112,13 @@ class Example:
         # to overzealously predict disappear.
         use_disappear = False
 
-        if use_disappear:
-            for loc in source.keys():
+        for loc in source.keys():
+            if use_disappear:
                 if loc not in target.keys():
                     target[loc] = Variable(Disappear(), "disappear", False)
-        else:
-            if loc in source.keys() and loc not in target.keys():
-                del source[loc]
+            else:
+                if loc in source.keys() and loc not in target.keys():
+                    del source[loc]
 
         varnames = set()
         # Add special tokens to variable names
