@@ -112,7 +112,9 @@ class Example:
         # to overzealously predict disappear.
         use_disappear = False
 
-        for loc in source.keys():
+        # Note: Need to copy source.keys() so we don't change the list while
+        # iterating.
+        for loc in list(source.keys()):
             if use_disappear:
                 if loc not in target.keys():
                     target[loc] = Variable(Disappear(), "disappear", False)
