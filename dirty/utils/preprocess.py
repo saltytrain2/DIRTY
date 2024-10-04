@@ -46,9 +46,13 @@ def example_generator(json_str_list):
         except ValueError:
             print(json_str, file=sys.stderr)
             continue
-        
+
         example = Example.from_cf(
-            cf, binary_file=meta, max_stack_length=1024, max_type_size=1024
+            cf,
+            use_disappear=False,
+            binary_file=meta,
+            max_stack_length=1024,
+            max_type_size=1024,
         )
 
         if example.is_valid_example:
