@@ -74,12 +74,12 @@ class Example:
         }
 
     @classmethod
-    def from_cf(cls, cf: CollectedFunction, **kwargs):
-        """Convert from a decoded CollectedFunction"""
+    def from_cf(cls, cf: CollectedFunction, use_disappear=False, **kwargs):
+        """Convert from a decoded CollectedFunction.  Generally set
+        use_disappear=True for prediction, and False for training."""
         name = cf.decompiler.name
         raw_code = cf.decompiler.raw_code
         code_tokens = tokenize_raw_code(raw_code)
-
 
         source = {**cf.decompiler.local_vars}
 
@@ -110,7 +110,6 @@ class Example:
         # Optionally assign type "Disappear" to variables not existing in the
         # ground truth.  EJS thinks this may be harmful since the model learns
         # to overzealously predict disappear.
-        use_disappear = False
 
         # Note: Need to copy source.keys() so we don't change the list while
         # iterating.
