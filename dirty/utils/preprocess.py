@@ -20,8 +20,6 @@ import shutil
 import sys
 import tarfile
 from json import dumps
-from multiprocessing import Process
-from typing import Tuple
 
 import numpy as np
 import ujson as json
@@ -29,7 +27,7 @@ from docopt import docopt
 from tqdm import tqdm
 
 from utils.dataset import Example
-from utils.ghidra_types import TypeInfo, TypeLib, TypeLibCodec
+from utils.ghidra_types import TypeLib, TypeLibCodec
 from utils.ghidra_function import CollectedFunction
 from utils.code_processing import canonicalize_code
 
