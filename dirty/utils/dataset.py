@@ -103,18 +103,25 @@ class Example:
 
         # Remove variables that overlap on memory or don't appear in the code tokens
         source_code_tokens_set = set(code_tokens[code_tokens.index("{"):])
-        #target_code_tokens_set = set(tokenize_raw_code(cf.debug.raw_code))
 
-        source, source_filtered = Example.filter(source, source_code_tokens_set)
-        # target = Example.filter(target, target_code_tokens_set, set(source.keys()))
-        target, target_filtered = Example.filter(target, None, set(source.keys()))
+        source, source_filtered_out = Example.filter(source, source_code_tokens_set)
+        target, target_filtered_out = Example.filter(target, None, set(source.keys()), filter_non_user_names=True)
 
-        # Assign type "Disappear" to variables not existing in the ground truth
+        # Optionally assign type "Disappear" to variables not existing in the
+        # ground truth.  EJS thinks this may be harmful since the model learns
+        # to overzealously predict disappear.
+        use_disappear = False
+
+        if use_disappear:
+            for loc in source.keys():
+                if loc not in target.keys():
+                    target[loc] = Variable(Disappear(), "disappear", False)
+        else:
+            if loc in source.keys() and loc not in target.keys():
+                del source[loc]
+
         varnames = set()
-        for loc in source.keys():
-            if loc not in target.keys():
-                target[loc] = Variable(Disappear(), "disappear", False)
-        # Add special tokens to variables to prevent being sub-tokenized in BPE
+        # Add special tokens to variable names
         for var in source.values():
             varname = var.name
             varnames.add(varname)
@@ -123,8 +130,8 @@ class Example:
                 code_tokens[idx] = f"@@{code_tokens[idx]}@@"
 
         other_info = {
-            'source_filtered': source_filtered,
-            'target_filtered': target_filtered,
+            'source_filtered': source_filtered_out,
+            'target_filtered': target_filtered_out,
         }
 
         return cls(
@@ -143,6 +150,7 @@ class Example:
         mapping: Mapping[Location, Set[Variable]],
         code_tokens: Optional[Set[str]] = None,
         locations: Optional[Set[Location]] = None,
+        filter_non_user_names: bool = False
     ) -> Mapping[Location, Variable]:
         """Discard and leave these for future work:
 
@@ -164,6 +172,8 @@ class Example:
             if code_tokens is not None and not var.name in code_tokens:
                 continue
             if locations is not None and not location in locations:
+                continue
+            if filter_non_user_names and not var.user:
                 continue
             filtered.remove((location, var))
             ret[location] = var
