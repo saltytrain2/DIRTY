@@ -15,8 +15,6 @@ Options:
 from collections import Counter
 from itertools import chain
 
-import torch
-import pickle
 from docopt import docopt
 import json
 import sentencepiece as spm
