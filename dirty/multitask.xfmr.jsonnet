@@ -48,7 +48,7 @@
   "train": {
     "batch_size": 16,
     "grad_accum_step": 4,
-    "max_epoch": 15,
+    "max_epoch": 25,
     "lr": 1e-4,
     "patience": 10,
     "check_val_every_n_epoch": 1,
