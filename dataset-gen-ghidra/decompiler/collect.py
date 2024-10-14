@@ -5,7 +5,7 @@ from collections import defaultdict
 from typing import DefaultDict, Iterable, Optional, Set
 
 from ghidra_types import TypeInfo, TypeLib, TypeLibCodec
-from ghidra_variable import Location, Stack, Register, Variable
+from ghidra_variable import Location, Stack, Register, Unknown, Variable
 
 import ghidra.program.model.symbol
 
@@ -60,12 +60,16 @@ class Collector:
 
             if storage.isStackStorage():
                 loc = Stack(storage.getStackOffset())
-            if storage.isRegisterStorage():
+            elif storage.isRegisterStorage():
                 loc = Register(storage.getRegister().getName())
-            if loc is not None:
-                collected_vars[loc].add(
-                    Variable(typ=typ, name=v.getName(), user=has_user_info)
-                )
+            else:
+                loc = Unknown(storage.toString())
+
+            assert loc is not None
+
+            collected_vars[loc].add(
+                Variable(typ=typ, name=v.getName(), user=has_user_info)
+            )
         return collected_vars
 
     def activate(self, ctx) -> int:
