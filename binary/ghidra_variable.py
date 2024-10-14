@@ -62,7 +62,7 @@ class Unknown(Location):
     str: optional string description of the location
     """
 
-    def __init__(self, str: string = "unknown"):
+    def __init__(self, str: str = "unknown"):
         self.str = str
 
     def json_key(self):
