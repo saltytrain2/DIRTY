@@ -215,6 +215,8 @@ def do_infer(cf, ghidra_function, redecompile=False):
     output['model_output_multi'] = model_output_multi
     output['other_info'] = {'example_info': example_info, 'other_outputs': other_outputs}
 
+    print(f"Model output: {model_output}")
+
     # Set up the decompiler
     decompiler = DecompInterface()
     decompiler.openProgram(ghidra_function.getProgram())

@@ -51,7 +51,7 @@ def ghidra_obtain_cf(ghidra_func):
             elif storage.isRegisterStorage():
                 loc = Register(storage.getRegister().getName())
             else:
-                print(f"Unknown storage type for {v} {v.getName()}: {storage}")
+                print(f"Warning: Unknown storage type for {v} {v.getName()}: {storage}")
             if loc is not None:
                 collected_vars[loc].add(Variable(typ=typ, name=v.getName(), user=False))
         return collected_vars
