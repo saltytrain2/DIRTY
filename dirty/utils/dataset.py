@@ -287,7 +287,7 @@ class Dataset(wds.Dataset):
         tgt_var_subtypes = []
         tgt_var_type_sizes = []
         tgt_var_type_objs = []
-        src_var_locs = []
+        src_var_locs_encoded = []
         tgt_names = []
         # variables on registers first, followed by those on stack
         locs = sorted(
@@ -321,7 +321,8 @@ class Dataset(wds.Dataset):
             # 1: size of the type
             # 2, 3, ...: start offset of fields in the type
             def var_loc_in_func(loc):
-                # TODO: fix the magic number for computing vocabulary idx
+                # TODO: fix the magic number (1030) for computing vocabulary idx
+                # TODO: add vocabulary for unknown locations?
                 if isinstance(loc, Register):
                     return 1030 + self.vocab.regs[loc.name]
                 else:
@@ -333,7 +334,7 @@ class Dataset(wds.Dataset):
                         else 2
                     )
 
-            src_var_locs.append(
+            src_var_locs_encoded.append(
                 [var_loc_in_func(loc)]
                 + types_model.encode_memory(
                     (src_var.typ.size,) + src_var.typ.start_offsets()
@@ -351,7 +352,7 @@ class Dataset(wds.Dataset):
             )
         setattr(example, "src_var_types", src_var_types_id)
         setattr(example, "src_var_types_str", src_var_types_str)
-        setattr(example, "src_var_locs", src_var_locs)
+        setattr(example, "src_var_locs", src_var_locs_encoded)
         setattr(example, "tgt_var_types", tgt_var_types_id)
         setattr(example, "tgt_var_types_str", tgt_var_types_str)
         setattr(example, "tgt_var_subtypes", tgt_var_subtypes)
