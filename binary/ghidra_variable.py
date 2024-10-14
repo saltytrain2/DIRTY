@@ -14,10 +14,6 @@ class Location:
     def json_key(self):
         """Returns a string suitable as a key in a JSON dict"""
         pass
-    
-    def __hash__(self) -> int:
-        return hash(self.json_key())
-
 
 class Register(Location):
     """A register
@@ -33,6 +29,9 @@ class Register(Location):
 
     def __eq__(self, other: Any) -> bool:
         return isinstance(other, Register) and self.name == other.name
+
+    def __hash__(self) -> int:
+        return hash(self.json_key())
 
     def __repr__(self) -> str:
         return f"Reg {self.name}"
@@ -53,6 +52,9 @@ class Stack(Location):
     def __eq__(self, other: Any) -> bool:
         return isinstance(other, Stack) and self.offset == other.offset
 
+    def __hash__(self) -> int:
+        return hash(self.json_key())
+
     def __repr__(self) -> str:
         return f"Stk 0x{self.offset:x}"
 
@@ -70,6 +72,9 @@ class Unknown(Location):
 
     def __eq__(self, other: Any) -> bool:
         return isinstance(other, Unknown) and self.str == other.str
+
+    def __hash__(self) -> int:
+        return hash(self.json_key())
 
     def __repr__(self) -> str:
         return f"Unknown {self.str}"
