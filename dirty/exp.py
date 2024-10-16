@@ -7,7 +7,6 @@ Usage:
 
 Options:
     -h --help                                   Show this screen
-    --cuda                                      Use GPU
     --debug                                     Debug mode
     --seed=<int>                                Seed [default: 0]
     --expname=<str>                             work dir [default: type]
@@ -79,8 +78,6 @@ def train(args):
     trainer = pl.Trainer(
         max_epochs=config["train"]["max_epoch"],
         logger=wandb_logger,
-        gpus=1 if args["--cuda"] else None,
-        auto_select_gpus=True,
         gradient_clip_val=1,
         callbacks=[
             EarlyStopping(
@@ -92,9 +89,7 @@ def train(args):
             )
         ],
         check_val_every_n_epoch=config["train"]["check_val_every_n_epoch"],
-        progress_bar_refresh_rate=10,
         accumulate_grad_batches=config["train"]["grad_accum_step"],
-        resume_from_checkpoint=resume_from_checkpoint,
         limit_test_batches=config["test"]["limit"] if "limit" in config["test"] else 1.0
     )
     if args["--eval-ckpt"]:
@@ -111,7 +106,7 @@ def train(args):
         ret = trainer.test(model, test_dataloaders=test_loader, ckpt_path=args["--eval-ckpt"])
         json.dump(ret[0], open("test_result.json", "w"))
     else:
-        trainer.fit(model, train_loader, val_loader)
+        trainer.fit(model, train_loader, val_loader, ckpt_path=resume_from_checkpoint)
 
 
 if __name__ == "__main__":
@@ -123,9 +118,7 @@ if __name__ == "__main__":
     print(f"use random seed {seed}", file=sys.stderr)
     torch.manual_seed(seed)
 
-    use_cuda = cmd_args["--cuda"]
-    if use_cuda:
-        torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
     np.random.seed(seed * 13 // 7)
     random.seed(seed * 17 // 7)
 

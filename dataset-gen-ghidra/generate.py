@@ -15,7 +15,6 @@ from multiprocessing import Pool
 from typing import Iterable, Tuple
 
 from elftools.elf.elffile import ELFFile
-from elftools.common.exceptions import ELFRelocationError
 
 class Runner(object):
     file_dir = os.path.dirname(os.path.abspath(__file__))
@@ -111,6 +110,8 @@ class Runner(object):
                       '-max-cpu', "3", '-deleteProject']
         # idacall = [self.ida, "-B", f"-S{script}", file_name]
         output = ""
+        if self.verbose:
+            print(f"Running {ghidracall}")
         try:
             p = subprocess.Popen(ghidracall, env=env, start_new_session=True)
             p.wait(timeout=timeout)
@@ -136,13 +137,16 @@ class Runner(object):
         with open(filepath, 'rb') as f:
             elffile = ELFFile(f)
             if not elffile.has_dwarf_info():
-                return set()
+                if self.verbose:
+                    print(f"No dwarf info in {filepath}")
+                return None
             
             # for some reason, this is throwing an exception, give it if it does so
             try:
                 dwarfinfo = elffile.get_dwarf_info()
             except:
-                return set()
+                print(f"Error extracting dwarf info from {filepath}")
+                return None
 
             for CU in dwarfinfo.iter_CUs():
                 for DIE in CU.iter_DIEs():
@@ -152,10 +156,9 @@ class Runner(object):
                     for attr in DIE.attributes.values():
                         if attr.name == "DW_AT_name":
                             variable_names.add(attr.value.decode())
-            print(variable_names)
-            #print(len(variable_names))
+            if self.verbose:
+                print(f"Extracted variable names: {variable_names}")
             return variable_names
-            pass
 
     def run_one(self, args: Tuple[str, str]) -> None:
         path, binary = args
@@ -194,6 +197,8 @@ class Runner(object):
                         print(f"{prefix} types already collected, skipping")
                 else:
                     # Collect from original
+                    if self.verbose:
+                        print(f"Collecting debug information")
                     subprocess.check_output(["cp", file_path, orig.name])
 
                     var_set = self.extract_dwarf_var_names(os.path.join(path, orig.name))
@@ -206,6 +211,8 @@ class Runner(object):
                         if self.verbose:
                             print(f"Unable to collect debug information for {prefix}")
                 # Dump trees
+                if self.verbose:
+                    print(f"Dumping trees")
                 pickle_file = os.path.join(path, stripped.name) + ".p"
                 pickle.dump(set(), open(pickle_file, 'wb'))
                 self.run_decompiler(

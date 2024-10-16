@@ -1,6 +1,7 @@
 import glob
 import json
 from typing import Dict, List, Mapping, Optional, Set, Tuple, Union
+from collections import defaultdict
 
 import _jsonnet
 import torch
@@ -9,7 +10,7 @@ from torch.nn.utils.rnn import pad_sequence
 
 from utils.code_processing import tokenize_raw_code
 from utils.ghidra_function import CollectedFunction
-from utils.ghidra_variable import Location, Variable, location_from_json_key, Register, Stack
+from utils.ghidra_variable import Location, Variable, Unknown, location_from_json_key, Register, Stack
 from utils.ghidra_types import TypeLibCodec, Disappear
 
 
@@ -41,12 +42,12 @@ class Example:
     @classmethod
     def from_json(cls, d: Dict):
         source = {
-            location_from_json_key(loc): Variable.from_json(var)
-            for loc, var in d["source"].items()
+            location_from_json_key(loc): [Variable.from_json(var) for var in varlist]
+            for loc, varlist in d["source"].items()
         }
         target = {
-            location_from_json_key(loc): Variable.from_json(var)
-            for loc, var in d["target"].items()
+            location_from_json_key(loc): [Variable.from_json(var) for var in varlist]
+            for loc, varlist in d["target"].items()
         }
 
         # It seems like other code assumes the number of source and target
@@ -64,8 +65,8 @@ class Example:
 
     def to_json(self):
         assert self._is_valid
-        source = {loc.json_key(): var.to_json() for loc, var in self.source.items()}
-        target = {loc.json_key(): var.to_json() for loc, var in self.target.items()}
+        source = {loc.json_key(): [var.to_json() for var in varlist] for loc, varlist in self.source.items()}
+        target = {loc.json_key(): [var.to_json() for var in varlist] for loc, varlist in self.target.items()}
         return {
             "name": self.name,
             "code_tokens": self.code_tokens,
@@ -74,9 +75,11 @@ class Example:
         }
 
     @classmethod
-    def from_cf(cls, cf: CollectedFunction, use_disappear=False, **kwargs):
-        """Convert from a decoded CollectedFunction.  Generally set
-        use_disappear=True for prediction, and False for training."""
+    def from_cf(cls, cf: CollectedFunction, prediction=False, **kwargs):
+        """Convert from a decoded CollectedFunction.
+        """
+        use_disappear = prediction
+        filter_dups = not prediction
         name = cf.decompiler.name
         raw_code = cf.decompiler.raw_code
         code_tokens = tokenize_raw_code(raw_code)
@@ -104,8 +107,8 @@ class Example:
         # Remove variables that overlap on memory or don't appear in the code tokens
         source_code_tokens_set = set(code_tokens[code_tokens.index("{"):])
 
-        source, source_filtered_out = Example.filter(source, source_code_tokens_set)
-        target, target_filtered_out = Example.filter(target, None, set(source.keys()), filter_non_user_names=True)
+        source, source_filtered_out = Example.filter(source, source_code_tokens_set, filter_out_duplicate_locations=filter_dups)
+        target, target_filtered_out = Example.filter(target, None, set(source.keys()), filter_non_user_names=True, filter_out_duplicate_locations=filter_dups)
 
         # Optionally assign type "Disappear" to variables not existing in the
         # ground truth.  EJS thinks this may be harmful since the model learns
@@ -116,16 +119,17 @@ class Example:
         for loc in list(source.keys()):
             if use_disappear:
                 if loc not in target.keys():
-                    target[loc] = Variable(Disappear(), "disappear", False)
+                    target[loc] = [Variable(Disappear(), "disappear", False)] * len(source[loc])
             else:
                 if loc in source.keys() and loc not in target.keys():
                     del source[loc]
 
         varnames = set()
         # Add special tokens to variable names
-        for var in source.values():
-            varname = var.name
-            varnames.add(varname)
+        for varlist in source.values():
+            for var in varlist:
+                varname = var.name
+                varnames.add(varname)
         for idx in range(len(code_tokens)):
             if code_tokens[idx] in varnames:
                 code_tokens[idx] = f"@@{code_tokens[idx]}@@"
@@ -151,33 +155,35 @@ class Example:
         mapping: Mapping[Location, Set[Variable]],
         code_tokens: Optional[Set[str]] = None,
         locations: Optional[Set[Location]] = None,
-        filter_non_user_names: bool = False
-    ) -> Mapping[Location, Variable]:
+        filter_non_user_names: bool = False,
+        filter_out_duplicate_locations: bool = True
+    ) -> Mapping[Location, Set[Variable]]:
         """Discard and leave these for future work:
 
         Multiple variables sharing a memory location (no way to determine ground truth);
         Variables not appearing in code (no way to get representation);
         Target variables not appearing in source (useless ground truth);
         """
-        ret: Mapping[Location, Set[Variable]] = {}
+        ret: Mapping[Location, List[Variable]] = defaultdict(list)
 
         filtered = set()
 
         for location, variable_set in mapping.items():
             for v in variable_set:
                 filtered.add((location, v))
-            if len(variable_set) > 1:
+            if len(variable_set) > 1 and filter_out_duplicate_locations:
                 print(f"Warning: Ignoring location {location} with multiple variables {variable_set}")
                 continue
-            var = list(variable_set)[0]
-            if code_tokens is not None and not var.name in code_tokens:
-                continue
-            if locations is not None and not location in locations:
-                continue
-            if filter_non_user_names and not var.user:
-                continue
-            filtered.remove((location, var))
-            ret[location] = var
+
+            for var in variable_set:
+                if code_tokens is not None and not var.name in code_tokens:
+                    continue
+                if locations is not None and not location in locations:
+                    continue
+                if filter_non_user_names and not var.user:
+                    continue
+                filtered.remove((location, var))
+                ret[location].append(var)
         return ret, {x.name: loc.json_key() for loc, x in filtered}
 
     @property
@@ -289,22 +295,51 @@ class Dataset(wds.Dataset):
         tgt_var_type_objs = []
         src_var_locs_encoded = []
         tgt_names = []
-        # variables on registers first, followed by those on stack
-        locs = sorted(
-            example.source,
-            key=lambda x: sub_tokens.index(f"@@{example.source[x].name}@@")
-            if f"@@{example.source[x].name}@@" in sub_tokens
-            else self.max_src_tokens_len,
-        )
-        stack_pos = [x.offset for x in example.source if isinstance(x, Stack)]
+
+
+        locs = sorted(example.source.keys(), key=lambda loc: repr(loc))
+
+        stack_pos = [x.offset for x in example.source.keys() if isinstance(x, Stack)]
         stack_start_pos = max(stack_pos) if stack_pos else None
-        for loc in locs[: self.max_num_var]:
-            src_var = example.source[loc]
-            tgt_var = example.target[loc]
+
+        def var_loc_in_func(loc):
+            # TODO: fix the magic number (1030) for computing vocabulary idx
+            # TODO: add vocabulary for unknown locations?
+            if isinstance(loc, Register):
+                return 1030 + self.vocab.regs[loc.name]
+            elif isinstance(loc, Unknown):
+                return 2 # unknown
+            else:
+                from utils.vocab import VocabEntry
+
+                return (
+                    3 + stack_start_pos - loc.offset
+                    if stack_start_pos - loc.offset < VocabEntry.MAX_STACK_SIZE
+                    else 2
+                )
+
+        def for_src_var(loc, src_var):
+            nonlocal src_var_names, src_var_types_id, src_var_types_str, src_var_locs_encoded
             src_var_names.append(f"@@{src_var.name}@@")
-            tgt_var_names.append(f"@@{tgt_var.name}@@")
             src_var_types_id.append(types_model.lookup_decomp(str(src_var.typ)))
             src_var_types_str.append(str(src_var.typ))
+            # Memory
+            # 0: absolute location of the variable in the function, e.g.,
+            #   for registers: Reg 56
+            #   for stack: relative position to the first variable
+            # 1: size of the type
+            # 2, 3, ...: start offset of fields in the type
+
+            src_var_locs_encoded.append(
+                [var_loc_in_func(loc)]
+                + types_model.encode_memory(
+                    (src_var.typ.size,) + src_var.typ.start_offsets()
+                )
+            )
+
+        def for_tgt_var(loc, tgt_var):
+            nonlocal tgt_var_names, tgt_var_types_id, tgt_var_types_str, tgt_var_subtypes, tgt_var_type_sizes, tgt_var_type_objs, tgt_names
+            tgt_var_names.append(f"@@{tgt_var.name}@@")
             tgt_var_types_id.append(types_model[str(tgt_var.typ)])
             tgt_var_types_str.append(str(tgt_var.typ))
             if types_model[str(tgt_var.typ)] == types_model.unk_id:
@@ -314,33 +349,13 @@ class Dataset(wds.Dataset):
             tgt_var_type_sizes.append(len(subtypes))
             tgt_var_subtypes += subtypes
             tgt_var_type_objs.append(tgt_var.typ)
-            # Memory
-            # 0: absolute location of the variable in the function, e.g.,
-            #   for registers: Reg 56
-            #   for stack: relative position to the first variable
-            # 1: size of the type
-            # 2, 3, ...: start offset of fields in the type
-            def var_loc_in_func(loc):
-                # TODO: fix the magic number (1030) for computing vocabulary idx
-                # TODO: add vocabulary for unknown locations?
-                if isinstance(loc, Register):
-                    return 1030 + self.vocab.regs[loc.name]
-                else:
-                    from utils.vocab import VocabEntry
-
-                    return (
-                        3 + stack_start_pos - loc.offset
-                        if stack_start_pos - loc.offset < VocabEntry.MAX_STACK_SIZE
-                        else 2
-                    )
-
-            src_var_locs_encoded.append(
-                [var_loc_in_func(loc)]
-                + types_model.encode_memory(
-                    (src_var.typ.size,) + src_var.typ.start_offsets()
-                )
-            )
             tgt_names.append(tgt_var.name)
+
+        for loc in locs[: self.max_num_var]:
+            for src_var in example.source[loc]:
+                for_src_var(loc, src_var)
+            for tgt_var in example.target[loc]:
+                for_tgt_var(loc, tgt_var)
 
         setattr(example, "src_var_names", src_var_names)
         setattr(example, "tgt_var_names", tgt_var_names)
@@ -397,7 +412,7 @@ class Dataset(wds.Dataset):
         src_type_id = pad_sequence(src_type_ids, batch_first=True)
         tgt_type_ids = [torch.tensor(e.tgt_var_types, dtype=torch.long) for e in examples]
         target_type_id = pad_sequence(tgt_type_ids, batch_first=True)
-        assert target_type_id.shape == variable_mention_num.shape
+        assert target_type_id.shape == variable_mention_num.shape, f"{target_type_id.shape} != {variable_mention_num.shape}"
 
         subtype_ids = [
             torch.tensor(e.tgt_var_subtypes, dtype=torch.long) for e in examples

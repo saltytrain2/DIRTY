@@ -1,7 +1,7 @@
 {
   "data": {
     "train_file": "data1/train-shard-*.tar",
-    "dev_file": "data1/dev-*.tar",
+    "dev_file": "data1/dev*.tar",
     "test_file": "data1/test.tar",
     "vocab_file": "data1/vocab.bpe10000",
     "typelib_file": "data1/typelib.json",
@@ -57,6 +57,5 @@
     "pred_file": "pred_mt_ci.json",
     "batch_size": 16,
     "beam_size": 0,
-    "limit": 2,
   }
 }
