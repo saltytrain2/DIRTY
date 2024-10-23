@@ -27,7 +27,7 @@ from utils.ghidra_variable import Register
 SAME_VARIABLE_TOKEN = "<IDENTITY>"
 END_OF_VARIABLE_TOKEN = "</s>"
 PAD_ID = 0
-assert PAD_ID == 0
+UNKNOWN_ID = 3
 
 
 class VocabEntry:

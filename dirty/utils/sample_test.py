@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import traceback
 import tqdm
+from utils.vocab import Vocab, UNKNOWN_ID
 
 BIN_DIR = "/home/ed/Projects/DIRTY/dirt-binaries/all-binaries"
 
@@ -22,6 +23,7 @@ if __name__ == "__main__":
 
     parser.add_argument("json_file", help="Path to the JSON file")
     parser.add_argument("-o", "--output_file", help="Path to the output JSON file")
+    parser.add_argument("--vocab", help="Path to the vocab file", default="data1/vocab.bpe10000")
     args = parser.parse_args()
     json_file = args.json_file
 
@@ -31,6 +33,8 @@ if __name__ == "__main__":
     sampled_bins = random.sample(list(data.keys()), args.num_samples)
 
     sampled_functions = list((bin,random.choice(list(data[bin].items()))) for bin in sampled_bins)
+
+    vocab = Vocab.load(args.vocab)
 
     # if args.output_file:
     #     with open(args.output_file, "w") as f:
@@ -131,6 +135,8 @@ if __name__ == "__main__":
 
         d["strip"]["aligned_frac"] = len(d["strip"]["aligned_vars"]) / len(d["strip"]["vars"])
 
+        d["symbol"]["unknown_var_names"] = [v for v in d["symbol"]["vars"] if vocab.names[v] == UNKNOWN_ID]
+
         # d["symbol"]["origvars"] = [v[1] for v in jsondata.values()]
 
         # d["symbol"]["aligned_vars"] = list(set(d["symbol"]["vars"]) & {v[1] for v in jsondata.values()})
@@ -160,8 +166,8 @@ if __name__ == "__main__":
     with multiprocessing.Pool(4) as pool:
         results = list(tqdm.tqdm(pool.imap_unordered(worker_catch, list(sampled_functions)), total=args.num_samples))
 
-    total_variables_wo_symbols = sum(len(ex['strip']['vars']) for ex in results if "exception" not in ex)
-    total_variables_w_symbols = sum(len(ex['symbol']['vars']) for ex in results if "exception" not in ex)
+    total_variables_wo_symbols = sum(len(ex['strip']['vars']) for ex in results if "exception" not in ex) + 0.01
+    total_variables_w_symbols = sum(len(ex['symbol']['vars']) for ex in results if "exception" not in ex) + 0.01
     #total_predictions = sum(len(ex['predictions']) for ex in results if "exception" not in ex)
     total_name_predictions = sum(len(ex['name_predictions']) for ex in results if "exception" not in ex)
     total_type_predictions = sum(len(ex['type_predictions']) for ex in results if "exception" not in ex)
