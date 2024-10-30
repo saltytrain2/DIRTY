@@ -238,9 +238,14 @@ class Dataset(wds.Dataset):
         # Estimate size of dataset
         # XXX: Limit number of files we read?  Right
         # now we use all of them.
-        line_dataset = wds.Dataset(urls).pipe(Dataset._file_iter_to_line_iter)
-        print(f"URLs: {urls} dataset: {line_dataset}")
-        self.len = sum(1 for _line in line_dataset)
+        try:
+            line_dataset = wds.Dataset(urls).pipe(Dataset._file_iter_to_line_iter)
+            print(f"URLs: {urls} dataset: {line_dataset}")
+            self.len = sum(1 for _line in line_dataset)
+        except:
+            # This might fail if we create a dummy dataset, such as in
+            # utils.infer.
+            self.len = None
 
     def __len__(self):
         return self.len
