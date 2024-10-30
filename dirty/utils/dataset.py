@@ -237,7 +237,7 @@ class Dataset(IterableDataset):
         else:
 
             self.wds = (
-                wds.WebDataset(urls, empty_check=False)
+                wds.WebDataset(urls, empty_check=False, shardshuffle=True)
                 .compose(Dataset._file_iter_to_line_iter)
                 .map(Example.from_json)
                 .map(annotate)
@@ -250,7 +250,7 @@ class Dataset(IterableDataset):
             # now we use all of them.
             try:
                 line_dataset = (
-                    wds.WebDataset(urls)
+                    wds.WebDataset(urls, shardshuffle=False)
                     .compose(Dataset._file_iter_to_line_iter)
                 )
                 #print(f"URLs: {urls} dataset: {line_dataset}")
