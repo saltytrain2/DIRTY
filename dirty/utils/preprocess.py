@@ -8,7 +8,6 @@ Options:
     --max=<int>                max dataset size [default: -1]
     --shard-size=<int>         shard size [default: 5000]
     --test-file=<file>         test file
-    --no-filtering             do not filter files
 """
 
 import glob
