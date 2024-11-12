@@ -23,7 +23,7 @@ class Collector:
             with gzip.open(self.type_lib_file_name, "rt") as type_lib_file:
                 self.type_lib = TypeLibCodec.decode(type_lib_file.read())
         except Exception as e:
-            print(e)
+            # print(e)
             print("Could not find type library, creating a new one")
             self.type_lib = TypeLib()
 
