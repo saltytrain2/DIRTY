@@ -108,24 +108,23 @@ class Runner(object):
         ghidracall = [self.ghidra, path_to_dir, temp_dir, '-import', file_name, 
                       '-postScript', script_name, file_name + ".p", "-scriptPath", script_dir,
                       '-max-cpu', "1", '-deleteProject']
-        # idacall = [self.ida, "-B", f"-S{script}", file_name]
-        output = ""
         if self.verbose:
             print(f"Running {ghidracall}")
         try:
-            p = subprocess.Popen(ghidracall, env=env, start_new_session=True)
-            p.wait(timeout=timeout)
+            p = subprocess.Popen(ghidracall, env=env, start_new_session=True, 
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stdout, stderr = p.communicate(timeout=timeout)
+            if self.verbose:
+                print(stdout.decode())
+                print(stderr.decode())
         except subprocess.TimeoutExpired as e:
             print(f"Timed out while running {ghidracall}")
             os.killpg(os.getpgid(p.pid), signal.SIGTERM)
             subprocess.run(f"rm -r {path_to_dir}/__*", shell=True)
         except subprocess.CalledProcessError as e:
             subprocess.run(f"rm -r {path_to_dir}/__*", shell=True)
-            pass
-            # output = e.output
-            # subprocess.call(["rm", "-f", f"{file_name}.i64"])
-        # if self.verbose:
-        #     print(output.decode("unicode_escape"))
+            if self.verbose:
+                print(e.output.decode())
 
     def extract_dwarf_var_names(self, filepath:str) -> set:
         """
