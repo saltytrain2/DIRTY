@@ -107,7 +107,7 @@ class Runner(object):
 
         ghidracall = [self.ghidra, path_to_dir, temp_dir, '-import', file_name, 
                       '-postScript', script_name, file_name + ".p", "-scriptPath", script_dir,
-                      '-max-cpu', "3", '-deleteProject']
+                      '-max-cpu', "1", '-deleteProject']
         # idacall = [self.ida, "-B", f"-S{script}", file_name]
         output = ""
         if self.verbose:
