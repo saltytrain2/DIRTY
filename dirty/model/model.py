@@ -5,13 +5,18 @@ from typing import Dict, Tuple, Union
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
-from torchmetrics.functional.classification import multiclass_accuracy
+import torchmetrics.functional.classification # for multiclass_accuracy
 from utils.vocab import Vocab
 from utils.ghidra_types import TypeInfo, TypeLibCodec
 
 from model.encoder import Encoder
 from model.decoder import Decoder
 
+# Wow, macro is the default.  That is crazy.
+def accuracy(preds, targets, average="micro", **kwargs):
+    if "num_classes" not in kwargs and average == "micro":
+        kwargs["num_classes"] = len(targets) # doesn't matter for micro
+    return torchmetrics.functional.classification.multiclass_accuracy(preds, targets, average=average, **kwargs)
 
 class RenamingDecodeModule(pl.LightningModule):
     def __init__(self, config):
@@ -320,7 +325,7 @@ class TypeReconstructionModel(pl.LightningModule):
                 )
                 self.log("train_rename_loss", loss)
                 total_loss += loss
-        self.log("train_loss", total_loss)
+        self.log("train_loss", total_loss, prog_bar=True)
         return total_loss
 
     def validation_step(self, batch, batch_idx):
@@ -466,10 +471,9 @@ class TypeReconstructionModel(pl.LightningModule):
             if (retype_preds == retype_targets).sum() > 0:
                 self.log(
                     f"{prefix}_rename_on_correct_retype_acc",
-                    multiclass_accuracy(
+                    accuracy(
                         rename_preds[retype_preds == retype_targets],
-                        rename_targets[retype_preds == retype_targets],
-                        len(self.vocab.names)
+                        rename_targets[retype_preds == retype_targets]
                     ),
                     sync_dist=True
                 )
@@ -483,10 +487,10 @@ class TypeReconstructionModel(pl.LightningModule):
         targets = torch.cat([x[f"{task}_targets"] for x in outputs])
         loss = torch.cat([x[f"{task}_loss"] for x in outputs]).mean()
         self.log(f"{prefix}_{task}_loss", loss, sync_dist=True)
-        self.log(f"{prefix}_{task}_acc", multiclass_accuracy(preds, targets, num_classes=len(self.vocab.types if task == "retype" else self.vocab.names)), sync_dist=True)
+        self.log(f"{prefix}_{task}_acc", accuracy(preds, targets), sync_dist=True)
         self.log(
             f"{prefix}_{task}_acc_macro",
-            multiclass_accuracy(
+            accuracy(
                 preds,
                 targets,
                 num_classes=len(self.vocab.types if task == "retype" else self.vocab.names),
@@ -516,13 +520,13 @@ class TypeReconstructionModel(pl.LightningModule):
         if body_in_train_mask.sum() > 0:
             self.log(
                 f"{prefix}_{task}_body_in_train_acc",
-                multiclass_accuracy(preds[body_in_train_mask], targets[body_in_train_mask], num_classes=len(self.vocab.types if task == "retype" else self.vocab.names)),
+                accuracy(preds[body_in_train_mask], targets[body_in_train_mask]),
                 sync_dist=True
             )
         if (~body_in_train_mask).sum() > 0:
             self.log(
                 f"{prefix}_{task}_body_not_in_train_acc",
-                multiclass_accuracy(preds[~body_in_train_mask], targets[~body_in_train_mask], num_classes=len(self.vocab.types if task == "retype" else self.vocab.names)),
+                accuracy(preds[~body_in_train_mask], targets[~body_in_train_mask]),
                 sync_dist=True
             )
         assert pos == sum(x["targets_nums"].sum() for x in outputs), (
@@ -539,16 +543,16 @@ class TypeReconstructionModel(pl.LightningModule):
         if struc_mask.sum() > 0:
             self.log(
                 f"{prefix}{task_str}_struc_acc",
-                multiclass_accuracy(preds[struc_mask], targets[struc_mask], num_classes=len(self.vocab.types if task == "retype" else self.vocab.names)),
+                accuracy(preds[struc_mask], targets[struc_mask]),
                 sync_dist=True
             )
             # adjust for the number of classes
             self.log(
                 f"{prefix}{task_str}_struc_acc_macro",
-                multiclass_accuracy(
+                accuracy(
                     preds[struc_mask],
                     targets[struc_mask],
-                    num_classes=len(self.vocab.types),
+                    num_classes=len(self.vocab.types if task == "retype" else self.vocab.names),
                     average="macro",
                 )
                 * len(self.vocab.types)
@@ -558,20 +562,18 @@ class TypeReconstructionModel(pl.LightningModule):
         if (struc_mask & body_in_train_mask).sum() > 0:
             self.log(
                 f"{prefix}{task_str}_body_in_train_struc_acc",
-                multiclass_accuracy(
+                accuracy(
                     preds[struc_mask & body_in_train_mask],
-                    targets[struc_mask & body_in_train_mask],
-                    num_classes=len(self.vocab.types if task == "retype" else self.vocab.names)
+                    targets[struc_mask & body_in_train_mask]
                 ),
                 sync_dist=True
             )
         if (~body_in_train_mask & struc_mask).sum() > 0:
             self.log(
                 f"{prefix}{task_str}_body_not_in_train_struc_acc",
-                multiclass_accuracy(
+                accuracy(
                     preds[~body_in_train_mask & struc_mask],
-                    targets[~body_in_train_mask & struc_mask],
-                    num_classes=len(self.vocab.types if task == "retype" else self.vocab.names)
+                    targets[~body_in_train_mask & struc_mask]
                 ),
                 sync_dist=True
             )

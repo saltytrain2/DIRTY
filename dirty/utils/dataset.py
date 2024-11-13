@@ -13,7 +13,7 @@ from utils.code_processing import tokenize_raw_code
 from utils.ghidra_function import CollectedFunction
 from utils.ghidra_variable import Location, Variable, Unknown, location_from_json_key, Register, Stack
 from utils.ghidra_types import TypeLibCodec, Disappear
-
+from utils.vocab import Vocab
 
 class Example:
     def __init__(
@@ -200,21 +200,7 @@ def identity(x):
 def get_src_len(e):
     return e.source_seq_length
 
-class WrappedLenDataset(IterableDataset):
-    def __init__(self, ds):
-        self.len = sum(1 for b in ds)
-        self.ds = ds
-
-    def __iter__(self):
-        return iter(self.ds)
-
-    def __len__(self):
-        return self.len
-
-    def __getattr__(self, attr):
-        return getattr(self.ds, attr)
-
-class Dataset(wds.Dataset):
+class Dataset(IterableDataset):
 
     SHUFFLE_BUFFER = 5000
     SORT_BUFFER = 512
@@ -223,13 +209,13 @@ class Dataset(wds.Dataset):
         # support wildcards
         urls = sorted(glob.glob(url))
         urls = urls[: int(percent * len(urls))]
-        super().__init__(urls)
+
         if config:
             # annotate example for training
-            from utils.vocab import Vocab
             self.vocab = Vocab.load(config["vocab_file"])
-            with open(config["typelib_file"]) as type_f:
-                self.typelib = TypeLibCodec.decode(type_f.read())
+            # do we need this?
+            #with open(config["typelib_file"]) as type_f:
+            #    self.typelib = TypeLibCodec.decode(type_f.read())
             self.max_src_tokens_len = config["max_src_tokens_len"]
             self.max_num_var = config["max_num_var"]
             annotate = self._annotate
@@ -240,13 +226,51 @@ class Dataset(wds.Dataset):
             # for creating the vocab
             annotate = identity
             sort = identity
-        self = (
-            self.pipe(Dataset._file_iter_to_line_iter)
-            .map(Example.from_json)
-            .map(annotate)
-            .shuffle(Dataset.SHUFFLE_BUFFER)
-            .pipe(sort)
-        )
+
+        if not urls:
+
+            # Dummy dataset for utils.infer
+
+            self.len = None
+            self.wds = None
+
+        else:
+
+            self.wds = (
+                wds.WebDataset(urls, empty_check=False, shardshuffle=True)
+                .compose(Dataset._file_iter_to_line_iter)
+                .map(Example.from_json)
+                .map(annotate)
+                .shuffle(Dataset.SHUFFLE_BUFFER)
+                .compose(sort)
+            )
+
+            # Estimate size of dataset
+            # XXX: Limit number of files we read or use a timer?  Right
+            # now we use all of them.
+            try:
+                line_dataset = (
+                    wds.WebDataset(urls, shardshuffle=False)
+                    .compose(Dataset._file_iter_to_line_iter)
+                )
+                #print(f"URLs: {urls} dataset: {line_dataset}")
+                #print("Estimating size of dataset...")
+                self.len = sum(1 for _line in line_dataset)
+            except:
+                # This might fail if we create a dummy dataset, such as in
+                # utils.infer.
+                self.len = None
+
+    def __len__(self):
+        return self.len
+
+    # We need this for IterableDataset
+    def __iter__(self):
+        return iter(self.wds)
+
+    # Should we forward to webdataset?
+    #def __getattr__(self, name):
+    #    return getattr(self.wds, name)
 
     @staticmethod
     def _sort(example_iter):
@@ -308,7 +332,6 @@ class Dataset(wds.Dataset):
         tgt_var_type_objs = []
         src_var_locs_encoded = []
         tgt_names = []
-
 
         locs = sorted(example.source.keys(), key=lambda loc: repr(loc))
 
@@ -436,10 +459,8 @@ class Dataset(wds.Dataset):
         ]
         target_type_sizes = pad_sequence(type_sizes, batch_first=True)
 
-
         src_type_mask = src_type_id > 0
         tgt_type_mask = target_type_id > 0
-
 
         src_var_locs = [
             torch.tensor(mems, dtype=torch.long)

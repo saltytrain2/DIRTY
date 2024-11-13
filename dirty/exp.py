@@ -29,13 +29,13 @@ import wandb
 from docopt import docopt
 from pytorch_lightning import LightningDataModule
 from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.tuner import Tuner
 from torch.utils.data import DataLoader
 
 from model.model import TypeReconstructionModel
 from utils import util
-from utils.dataset import Dataset, WrappedLenDataset
+from utils.dataset import Dataset
 
 
 def train(args):
@@ -51,12 +51,10 @@ def train(args):
     train_set = Dataset(
         config["data"]["train_file"], config["data"], percent=float(args["--percent"])
     )
-    train_set = WrappedLenDataset(train_set)
     test_set = Dataset(config["data"]["test_file"], config["data"])
-    test_set = WrappedLenDataset(test_set)
     dev_set = Dataset(config["data"]["dev_file"], config["data"])
 
-    print(f"len is {len(train_set)}")
+    print(f"Length of training dataset is {len(train_set)} examples")
 
     # Define DataModule for batch finding.
     class LitDataModule(LightningDataModule):
@@ -94,25 +92,35 @@ def train(args):
     # model
     model = TypeReconstructionModel(config)
 
-    wandb_logger = WandbLogger(name=args["--expname"], project="dire", log_model=True)
+    if "torch_float32_matmul" in config["train"]:
+        torch.set_float32_matmul_precision(config["train"]["torch_float32_matmul"])
+
+    wandb_logger = WandbLogger(name=args["--expname"], project="dire", log_model="all")
     wandb_logger.log_hyperparams(config)
+    wandb_logger.watch(model, log_freq=10000)
+    monitor_var = "val_retype_acc" if config["data"]["retype"] else "val_rename_acc"
     resume_from_checkpoint = (
         args["--eval-ckpt"] if args["--eval-ckpt"] else args["--resume"]
     )
     if resume_from_checkpoint == "":
         resume_from_checkpoint = None
     trainer = pl.Trainer(
+        precision=config["train"].get("precision", 32),
         max_epochs=config["train"]["max_epoch"],
         logger=wandb_logger,
         gradient_clip_val=1,
         callbacks=[
             EarlyStopping(
-                monitor="val_retype_acc"
-                if config["data"]["retype"]
-                else "val_rename_acc",
+                monitor=monitor_var,
                 mode="max",
                 patience=config["train"]["patience"],
-            )
+            ),
+            # Save all checkpoints that improve accuracy
+            ModelCheckpoint(
+                monitor=monitor_var,
+                filename='{epoch}-{%s:.2f}' % monitor_var,
+                save_top_k=2,
+                mode="max")
         ],
         check_val_every_n_epoch=config["train"]["check_val_every_n_epoch"],
         accumulate_grad_batches=config["train"]["grad_accum_step"],
@@ -127,9 +135,12 @@ def train(args):
         ret = trainer.test(model, test_dataloaders=datamodule.test_dataloader(), ckpt_path=args["--eval-ckpt"])
         json.dump(ret[0], open("test_result.json", "w"))
     else:
-        tuner = Tuner(trainer)
-        tuner.scale_batch_size(model, init_val=batch_size, datamodule=datamodule, max_trials=10)
-        print(f"Largest batch size: {datamodule.batch_size}")
+        try:
+            tuner = Tuner(trainer)
+            tuner.scale_batch_size(model, init_val=batch_size, datamodule=datamodule, max_trials=10)
+            print(f"Largest batch size: {datamodule.batch_size}")
+        except ValueError:
+            print("Couldn't find largest batch size")
         trainer.fit(model, datamodule.train_dataloader(), datamodule.val_dataloader(), ckpt_path=resume_from_checkpoint)
 
 
