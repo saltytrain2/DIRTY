@@ -97,7 +97,7 @@ def train(args):
 
     wandb_logger = WandbLogger(name=args["--expname"], project="dire", log_model="all")
     wandb_logger.log_hyperparams(config)
-    wandb_logger.watch(model, log_freq=10000)
+    wandb_logger.watch(model, log="all", log_freq=10000)
     monitor_var = "val_retype_acc" if config["data"]["retype"] else "val_rename_acc"
     resume_from_checkpoint = (
         args["--eval-ckpt"] if args["--eval-ckpt"] else args["--resume"]
@@ -108,7 +108,7 @@ def train(args):
         precision=config["train"].get("precision", 32),
         max_epochs=config["train"]["max_epoch"],
         logger=wandb_logger,
-        gradient_clip_val=1,
+        gradient_clip_val=1.0,
         callbacks=[
             EarlyStopping(
                 monitor=monitor_var,
