@@ -47,7 +47,7 @@
   },
   "train": {
     "torch_float32_matmul": "medium", # high, highest
-    "precision": "16-mixed", # bit
+    "precision": "32", # bit
     "batch_size": 16,
     "grad_accum_step": 4,
     "max_epoch": 25,
