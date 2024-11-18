@@ -29,7 +29,7 @@ import wandb
 from docopt import docopt
 from pytorch_lightning import LightningDataModule
 from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.tuner import Tuner
 from torch.utils.data import DataLoader
 
@@ -120,7 +120,8 @@ def train(args):
                 monitor=monitor_var,
                 filename='{epoch}-{%s:.2f}' % monitor_var,
                 save_top_k=2,
-                mode="max")
+                mode="max"),
+            LearningRateMonitor(logging_interval='epoch')
         ],
         check_val_every_n_epoch=config["train"]["check_val_every_n_epoch"],
         accumulate_grad_batches=config["train"]["grad_accum_step"],
