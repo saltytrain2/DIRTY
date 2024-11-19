@@ -597,5 +597,14 @@ class TypeReconstructionModel(pl.LightningModule):
         }
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.config["train"]["lr"])
-        return optimizer
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.config
+        ["train"]["lr"])
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=0)
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": scheduler,
+                "monitor": "val_loss",
+                "frequency": 1 # epoch
+            }
+        }
