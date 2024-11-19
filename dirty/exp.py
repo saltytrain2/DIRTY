@@ -29,7 +29,7 @@ import wandb
 from docopt import docopt
 from pytorch_lightning import LightningDataModule
 from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, LearningRateMonitor
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, BatchSizeFinder, LearningRateMonitor
 from pytorch_lightning.tuner import Tuner
 from torch.utils.data import DataLoader
 
@@ -47,7 +47,7 @@ def train(args):
         config = util.update(config, extra_config)
 
     # dataloaders
-    batch_size = config["train"]["batch_size"]
+    batch_size = config["test"]["batch_size"] if args["--eval-ckpt"] else config["train"]["batch_size"]
     train_set = Dataset(
         config["data"]["train_file"], config["data"], percent=float(args["--percent"])
     )
@@ -65,7 +65,7 @@ def train(args):
         def test_dataloader(self):
             return DataLoader(
                 test_set,
-                batch_size=config["test"]["batch_size"],
+                batch_size=self.batch_size,
                 collate_fn=Dataset.collate_fn,
                 num_workers=8,
                 pin_memory=True,
@@ -104,6 +104,7 @@ def train(args):
     )
     if resume_from_checkpoint == "":
         resume_from_checkpoint = None
+
     trainer = pl.Trainer(
         precision=config["train"].get("precision", 32),
         max_epochs=config["train"]["max_epoch"],
@@ -121,6 +122,7 @@ def train(args):
                 filename='{epoch}-{%s:.2f}' % monitor_var,
                 save_top_k=2,
                 mode="max"),
+            BatchSizeFinder(init_val=batch_size, max_trials=10),
             LearningRateMonitor(logging_interval='epoch')
         ],
         check_val_every_n_epoch=config["train"]["check_val_every_n_epoch"],
@@ -131,18 +133,10 @@ def train(args):
     datamodule = LitDataModule(batch_size=batch_size)
 
     if args["--eval-ckpt"]:
-        # HACK: necessary to make pl test work for IterableDataset
-        Dataset.__len__ = lambda self: 1000000
-        ret = trainer.test(model, test_dataloaders=datamodule.test_dataloader(), ckpt_path=args["--eval-ckpt"])
+        ret = trainer.test(model, datamodule=datamodule, ckpt_path=args["--eval-ckpt"])
         json.dump(ret[0], open("test_result.json", "w"))
     else:
-        try:
-            tuner = Tuner(trainer)
-            tuner.scale_batch_size(model, init_val=batch_size, datamodule=datamodule, max_trials=10)
-            print(f"Largest batch size: {datamodule.batch_size}")
-        except ValueError:
-            print("Couldn't find largest batch size")
-        trainer.fit(model, datamodule.train_dataloader(), datamodule.val_dataloader(), ckpt_path=resume_from_checkpoint)
+        trainer.fit(model, datamodule=datamodule, ckpt_path=resume_from_checkpoint)
 
 
 if __name__ == "__main__":
