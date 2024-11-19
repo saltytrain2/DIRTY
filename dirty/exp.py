@@ -29,7 +29,7 @@ import wandb
 from docopt import docopt
 from pytorch_lightning import LightningDataModule
 from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.tuner import Tuner
 from torch.utils.data import DataLoader
 
@@ -97,8 +97,8 @@ def train(args):
 
     wandb_logger = WandbLogger(name=args["--expname"], project="dire", log_model="all")
     wandb_logger.log_hyperparams(config)
-    wandb_logger.watch(model, log="all", log_freq=10000)
-    monitor_var = "val_retype_acc" if config["data"]["retype"] else "val_rename_acc"
+    wandb_logger.watch(model, log="parameters", log_freq=10000)
+    monitor_var = "val_acc"
     resume_from_checkpoint = (
         args["--eval-ckpt"] if args["--eval-ckpt"] else args["--resume"]
     )
@@ -120,7 +120,8 @@ def train(args):
                 monitor=monitor_var,
                 filename='{epoch}-{%s:.2f}' % monitor_var,
                 save_top_k=2,
-                mode="max")
+                mode="max"),
+            LearningRateMonitor(logging_interval='epoch')
         ],
         check_val_every_n_epoch=config["train"]["check_val_every_n_epoch"],
         accumulate_grad_batches=config["train"]["grad_accum_step"],
