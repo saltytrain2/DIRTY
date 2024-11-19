@@ -132,7 +132,7 @@ def train(args):
     if args["--eval-ckpt"]:
         # HACK: necessary to make pl test work for IterableDataset
         Dataset.__len__ = lambda self: 1000000
-        ret = trainer.test(model, test_dataloaders=datamodule.test_dataloader(), ckpt_path=args["--eval-ckpt"])
+        ret = trainer.test(model, datamodule=datamodule, ckpt_path=args["--eval-ckpt"])
         json.dump(ret[0], open("test_result.json", "w"))
     else:
         try:
@@ -141,7 +141,7 @@ def train(args):
             print(f"Largest batch size: {datamodule.batch_size}")
         except ValueError:
             print("Couldn't find largest batch size")
-        trainer.fit(model, datamodule.train_dataloader(), datamodule.val_dataloader(), ckpt_path=resume_from_checkpoint)
+        trainer.fit(model, datamodule=datamodule, ckpt_path=resume_from_checkpoint)
 
 
 if __name__ == "__main__":
