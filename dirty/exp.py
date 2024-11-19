@@ -130,8 +130,6 @@ def train(args):
     datamodule = LitDataModule(batch_size=batch_size)
 
     if args["--eval-ckpt"]:
-        # HACK: necessary to make pl test work for IterableDataset
-        Dataset.__len__ = lambda self: 1000000
         ret = trainer.test(model, datamodule=datamodule, ckpt_path=args["--eval-ckpt"])
         json.dump(ret[0], open("test_result.json", "w"))
     else:
