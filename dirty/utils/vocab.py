@@ -17,6 +17,7 @@ from itertools import chain
 
 from docopt import docopt
 import json
+import os
 import sentencepiece as spm
 from tqdm import tqdm
 
@@ -91,7 +92,7 @@ class VocabEntry:
         params = dict(
             unk_id=self.unk_id,
             word2id=self.word2id,
-            subtoken_model_path=self.subtoken_model_path,
+            subtoken_model_path=os.path.basename(self.subtoken_model_path) if self.subtoken_model_path is not None else None,
         )
         if hasattr(self, "word_freq"):
             params["word_freq"] = self.word_freq
