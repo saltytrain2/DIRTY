@@ -17,6 +17,7 @@ from itertools import chain
 
 from docopt import docopt
 import json
+import os
 import sentencepiece as spm
 from tqdm import tqdm
 
@@ -36,7 +37,7 @@ class VocabEntry:
 
         self.subtoken_model_path = subtoken_model_path
         if subtoken_model_path:
-            #print(subtoken_model_path)
+            # print(subtoken_model_path)
             self.subtoken_model = spm.SentencePieceProcessor()
             self.subtoken_model.load(subtoken_model_path)
 
@@ -91,7 +92,11 @@ class VocabEntry:
         params = dict(
             unk_id=self.unk_id,
             word2id=self.word2id,
-            subtoken_model_path=self.subtoken_model_path,
+            subtoken_model_path=(
+                os.path.basename(self.subtoken_model_path)
+                if self.subtoken_model_path is not None
+                else None
+            ),
         )
         if hasattr(self, "word_freq"):
             params["word_freq"] = self.word_freq
@@ -102,14 +107,20 @@ class VocabEntry:
         json.dump(self.params, open(path, "w"), indent=2)
 
     @classmethod
-    def load(cls, path=None, params=None):
+    def load(cls, path=None, dir=None, params=None):
         if path:
             params = json.load(open(path, "r"))
         else:
             assert params, "Params must be given when path is None!"
 
-        if "subtoken_model_path" in params:
-            subtoken_model_path = params["subtoken_model_path"]
+        if params.get("subtoken_model_path", None) is not None:
+            assert dir is not None
+            # temporary: for backward compatibility
+            # the submodel path is always in the same dir as the main vocab.
+            # but older versions don't do the basename in advance, so we'll do
+            # it here
+            params["subtoken_model_path"] = os.path.basename(params["subtoken_model_path"])
+            subtoken_model_path = os.path.join(dir, params["subtoken_model_path"])
         else:
             subtoken_model_path = None
 
@@ -212,13 +223,14 @@ class Vocab(object):
 
     @classmethod
     def load(cls, path):
+        dir = os.path.dirname(os.path.realpath(path))
         params = json.load(open(path, "r"))
         entries = dict()
         for key, val in params.items():
             # if key in ('grammar', ):
             #     entry = Grammar.load(val)
             # else:
-            entry = VocabEntry.load(params=val)
+            entry = VocabEntry.load(params=val, dir=dir)
             entries[key] = entry
         return cls(**entries)
 
@@ -300,7 +312,9 @@ if __name__ == "__main__":
     # names, e.g., local_8110, so we SHOULD use subwords for these.  If we have
     # more than 1000 preserved tokens, its a sign that something has gone wrong.
     print(f"There are {len(identifier_names)} preserved tokens (variable names)")
-    assert len(identifier_names) < 1000, "There are too many preserved tokens.  If you used --make-tokens-for-ids, turn it off.  If you did not, please file a bug report."
+    assert (
+        len(identifier_names) < 1000
+    ), "There are too many preserved tokens.  If you used --make-tokens-for-ids, turn it off.  If you did not, please file a bug report."
 
     spm.SentencePieceTrainer.Train(
         f"--add_dummy_prefix=false --pad_id={PAD_ID} --bos_id=1 --eos_id=2 --unk_id=3 "
