@@ -37,7 +37,7 @@ class VocabEntry:
 
         self.subtoken_model_path = subtoken_model_path
         if subtoken_model_path:
-            #print(subtoken_model_path)
+            # print(subtoken_model_path)
             self.subtoken_model = spm.SentencePieceProcessor()
             self.subtoken_model.load(subtoken_model_path)
 
@@ -92,7 +92,11 @@ class VocabEntry:
         params = dict(
             unk_id=self.unk_id,
             word2id=self.word2id,
-            subtoken_model_path=os.path.basename(self.subtoken_model_path) if self.subtoken_model_path is not None else None,
+            subtoken_model_path=(
+                os.path.basename(self.subtoken_model_path)
+                if self.subtoken_model_path is not None
+                else None
+            ),
         )
         if hasattr(self, "word_freq"):
             params["word_freq"] = self.word_freq
@@ -301,7 +305,9 @@ if __name__ == "__main__":
     # names, e.g., local_8110, so we SHOULD use subwords for these.  If we have
     # more than 1000 preserved tokens, its a sign that something has gone wrong.
     print(f"There are {len(identifier_names)} preserved tokens (variable names)")
-    assert len(identifier_names) < 1000, "There are too many preserved tokens.  If you used --make-tokens-for-ids, turn it off.  If you did not, please file a bug report."
+    assert (
+        len(identifier_names) < 1000
+    ), "There are too many preserved tokens.  If you used --make-tokens-for-ids, turn it off.  If you did not, please file a bug report."
 
     spm.SentencePieceTrainer.Train(
         f"--add_dummy_prefix=false --pad_id={PAD_ID} --bos_id=1 --eos_id=2 --unk_id=3 "
