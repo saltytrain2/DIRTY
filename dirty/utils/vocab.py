@@ -223,7 +223,7 @@ class Vocab(object):
 
     @classmethod
     def load(cls, path):
-        dir = os.path.dirname(path)
+        dir = os.path.dirname(os.path.realpath(path))
         params = json.load(open(path, "r"))
         entries = dict()
         for key, val in params.items():
