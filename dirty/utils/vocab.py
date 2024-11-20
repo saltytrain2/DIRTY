@@ -115,6 +115,11 @@ class VocabEntry:
 
         if "subtoken_model_path" in params:
             assert dir is not None
+            # temporary: for backward compatibility
+            # the submodel path is always in the same dir as the main vocab.
+            # but older versions don't do the basename in advance, so we'll do
+            # it here
+            params["subtoken_model_path"] = os.path.basename(params["subtoken_model_path"])
             subtoken_model_path = os.path.join(dir, params["subtoken_model_path"])
         else:
             subtoken_model_path = None
