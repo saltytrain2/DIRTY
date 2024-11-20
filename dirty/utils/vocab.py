@@ -107,14 +107,15 @@ class VocabEntry:
         json.dump(self.params, open(path, "w"), indent=2)
 
     @classmethod
-    def load(cls, path=None, params=None):
+    def load(cls, path=None, dir=None, params=None):
         if path:
             params = json.load(open(path, "r"))
         else:
             assert params, "Params must be given when path is None!"
 
         if "subtoken_model_path" in params:
-            subtoken_model_path = params["subtoken_model_path"]
+            assert dir is not None
+            subtoken_model_path = os.path.join(dir, params["subtoken_model_path"])
         else:
             subtoken_model_path = None
 
@@ -217,13 +218,14 @@ class Vocab(object):
 
     @classmethod
     def load(cls, path):
+        dir = os.path.dirname(path)
         params = json.load(open(path, "r"))
         entries = dict()
         for key, val in params.items():
             # if key in ('grammar', ):
             #     entry = Grammar.load(val)
             # else:
-            entry = VocabEntry.load(params=val)
+            entry = VocabEntry.load(params=val, dir=dir)
             entries[key] = entry
         return cls(**entries)
 
