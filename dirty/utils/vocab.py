@@ -113,7 +113,7 @@ class VocabEntry:
         else:
             assert params, "Params must be given when path is None!"
 
-        if "subtoken_model_path" in params:
+        if params.get("subtoken_model_path", None) is not None:
             assert dir is not None
             # temporary: for backward compatibility
             # the submodel path is always in the same dir as the main vocab.
