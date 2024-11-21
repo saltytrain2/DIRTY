@@ -97,7 +97,7 @@ def train(args):
 
     wandb_logger = WandbLogger(name=args["--expname"], project="dire", log_model="all")
     wandb_logger.log_hyperparams(config)
-    wandb_logger.watch(model, log="parameters", log_freq=10000)
+    wandb_logger.watch(model, log="all", log_freq=10000)
     monitor_var = "val_acc"
     resume_from_checkpoint = (
         args["--eval-ckpt"] if args["--eval-ckpt"] else args["--resume"]
