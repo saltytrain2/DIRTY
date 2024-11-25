@@ -105,6 +105,26 @@ def train(args):
     if resume_from_checkpoint == "":
         resume_from_checkpoint = None
 
+    # Adds a safety margin.  For example, `safety_margin`  of 0.1 indicates that
+    # the final batch_size will be reduced by 10%
+    class SafeBatchSizeFinder(BatchSizeFinder):
+        def __init__(self, safety_margin=0.1, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            assert safety_margin >= 0 and safety_margin <= 1.0
+            self.safety_margin = safety_margin
+
+        def scale_batch_size(self, trainer, *args, **kwargs):
+            super().scale_batch_size(trainer, *args, **kwargs)
+            original_batch_size = self.optimal_batch_size
+            new_batch_size = int(self.optimal_batch_size * (1.0 - self.safety_margin))
+            print(
+                f"Found optimal batch size of {original_batch_size}, but with a safety margin of {self.safety_margin}, reducing it to {new_batch_size}"
+            )
+            self.optimal_batch_size = new_batch_size
+            # This adjusts the data module batch_size.
+            pl.tuner.batch_size_scaling._adjust_batch_size(trainer, value=new_batch_size)
+            pl.tuner.batch_size_scaling._reset_dataloaders(trainer)
+
     trainer = pl.Trainer(
         precision=config["train"].get("precision", 32),
         max_epochs=config["train"]["max_epoch"],
@@ -122,7 +142,7 @@ def train(args):
                 filename='{epoch}-{%s:.2f}' % monitor_var,
                 save_top_k=2,
                 mode="max"),
-            BatchSizeFinder(init_val=batch_size, max_trials=10),
+            SafeBatchSizeFinder(safety_margin=0.1, init_val=batch_size, max_trials=30, steps_per_trial=3),
             LearningRateMonitor(logging_interval='epoch')
         ],
         check_val_every_n_epoch=config["train"]["check_val_every_n_epoch"],
