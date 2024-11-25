@@ -124,6 +124,7 @@ def train(args):
             # This adjusts the data module batch_size.
             pl.tuner.batch_size_scaling._adjust_batch_size(trainer, value=new_batch_size)
             pl.tuner.batch_size_scaling._reset_dataloaders(trainer)
+            trainer._active_loop.reset()
 
     trainer = pl.Trainer(
         precision=config["train"].get("precision", 32),
