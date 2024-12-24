@@ -162,7 +162,7 @@ class CollectedFunction:
     """
 
     def __init__(self, *, ea: int, debug: Function, decompiler: Function):
-        self.name: str = debug.name
+        self.name: str = debug.name if hasattr(debug, "name") else "unknown"
         self.ea = ea
         self.debug = debug
         self.decompiler = decompiler
@@ -170,13 +170,13 @@ class CollectedFunction:
     def to_json(self):
         return {
             "e": self.ea,
-            "b": self.debug.to_json(),
+            "b": self.debug.to_json() if hasattr(self.debug, "to_json") else None,
             "c": self.decompiler.to_json(),
         }
 
     @classmethod
     def from_json(cls, d):
-        debug = Function.from_json(d["b"])
+        debug = Function.from_json(d["b"]) if d["b"] is not None else None
         decompiler = Function.from_json(d["c"])
         return cls(ea=d["e"], debug=debug, decompiler=decompiler)
 

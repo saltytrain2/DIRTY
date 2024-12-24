@@ -4,7 +4,9 @@ from sys import argv
 
 from ghidra.app.decompiler import DecompInterface
 from ghidra.program.model.data import Undefined
-from ghidra.app.util.bin.format.dwarf4.next import DWARFImportOptions, DWARFProgram
+#from ghidra.app.util.bin.format.dwarf4.next import DWARFImportOptions, DWARFProgram
+# changed in ghidra 11.1
+from ghidra.app.util.bin.format.dwarf import DWARFImportOptions, DWARFProgram
 from ghidra.util.task import ConsoleTaskMonitor
 
 from collect import Collector
@@ -16,6 +18,7 @@ class CollectDebug(Collector):
     """Class for collecting debug information"""
 
     def __init__(self):
+        print("Initializing CollectDebug")
         self.functions: Dict[int, Function] = dict()
         super().__init__()
 
@@ -35,17 +38,21 @@ class CollectDebug(Collector):
         dwarf_options = DWARFImportOptions()
         dwarf_options.setOutputDIEInfo(True)
         monitor = ConsoleTaskMonitor()
-        dwarf_program = DWARFProgram(currentProgram, dwarf_options, monitor)
+        dwarf_program = DWARFProgram(currentProgram(), dwarf_options, monitor)
 
         decomp = DecompInterface()
         decomp.toggleSyntaxTree(False)
         decomp.openProgram(dwarf_program.getGhidraProgram())
 
         # Ghidra separates Variables from their Data info, populate typelib first
-        # for data in currentProgram.getListing().getDefinedData(True):
+        # for data in currentProgram().getListing().getDefinedData(True):
         #     self.type_lib.add_ghidra_type(data)
 
-        for f in currentProgram.getListing().getFunctions(True):
+        for f in currentProgram().getListing().getFunctions(True):
+
+            if f.isThunk():
+                continue
+
             # Decompile
             decomp_results = decomp.decompileFunction(f, 30, None)
 
@@ -66,8 +73,8 @@ class CollectDebug(Collector):
             self.type_lib.add_ghidra_type(func_return)
             return_type = TypeLib.parse_ghidra_type(func_return)
 
-            for symbol in symbols:
-                print(symbol.getDataType().getDescription())
+            #for symbol in symbols:
+            #    print(symbol.getDataType().getDescription())
 
             arguments = self.collect_variables(
                 f.getStackFrame().getFrameSize(), [v for v in symbols if v.isParameter()] # and v.getName() in all_var_names],

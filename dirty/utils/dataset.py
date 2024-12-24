@@ -1,20 +1,19 @@
 import glob
 import json
-from collections import defaultdict
 from typing import Dict, List, Mapping, Optional, Set, Tuple, Union
+from collections import defaultdict
 
 import _jsonnet
-import numpy as np
 import torch
 import webdataset as wds
+from torch.utils.data import IterableDataset
 from torch.nn.utils.rnn import pad_sequence
-from tqdm import tqdm
 
 from utils.code_processing import tokenize_raw_code
-from utils.ghidra_function import CollectedFunction, Function
-from utils.ghidra_variable import Location, Variable, location_from_json_key, Register, Stack
-from utils.ghidra_types import Struct, TypeLibCodec, TypeLib, UDT, TypeInfo, Disappear
-
+from utils.ghidra_function import CollectedFunction
+from utils.ghidra_variable import Location, Variable, Unknown, location_from_json_key, Register, Stack
+from utils.ghidra_types import TypeLibCodec, Disappear
+from utils.vocab import Vocab
 
 class Example:
     def __init__(
@@ -28,6 +27,7 @@ class Example:
         raw_code: str = "",
         test_meta: Dict[str, Dict[str, bool]] = None,
         binary: str = None,
+        other_info = None,
     ):
         self.name = name
         self.code_tokens = code_tokens
@@ -38,17 +38,23 @@ class Example:
         self.raw_code = raw_code
         self.test_meta = test_meta
         self.binary = binary
+        self.other_info = other_info
 
     @classmethod
     def from_json(cls, d: Dict):
         source = {
-            location_from_json_key(loc): Variable.from_json(var)
-            for loc, var in d["source"].items()
+            location_from_json_key(loc): [Variable.from_json(var) for var in varlist]
+            for loc, varlist in d["source"].items()
         }
         target = {
-            location_from_json_key(loc): Variable.from_json(var)
-            for loc, var in d["target"].items()
+            location_from_json_key(loc): [Variable.from_json(var) for var in varlist]
+            for loc, varlist in d["target"].items()
         }
+
+        # It seems like other code assumes the number of source and target
+        # variables are the same.
+        assert len(source) == len(target), "Source and target have different lengths"
+
         return cls(
             d["name"],
             d["code_tokens"],
@@ -60,8 +66,8 @@ class Example:
 
     def to_json(self):
         assert self._is_valid
-        source = {loc.json_key(): var.to_json() for loc, var in self.source.items()}
-        target = {loc.json_key(): var.to_json() for loc, var in self.target.items()}
+        source = {loc.json_key(): [var.to_json() for var in varlist] for loc, varlist in self.source.items()}
+        target = {loc.json_key(): [var.to_json() for var in varlist] for loc, varlist in self.target.items()}
         return {
             "name": self.name,
             "code_tokens": self.code_tokens,
@@ -70,35 +76,69 @@ class Example:
         }
 
     @classmethod
-    def from_cf(cls, cf: CollectedFunction, **kwargs):
-        """Convert from a decoded CollectedFunction"""
+    def from_cf(cls, cf: CollectedFunction, prediction=False, **kwargs):
+        """Convert from a decoded CollectedFunction.
+        """
+        use_disappear = prediction
+        filter_dups = not prediction
         name = cf.decompiler.name
         raw_code = cf.decompiler.raw_code
         code_tokens = tokenize_raw_code(raw_code)
 
-        source = {**cf.decompiler.local_vars, **cf.decompiler.arguments}
-        target = {**cf.debug.local_vars, **cf.debug.arguments}
+        source = {**cf.decompiler.local_vars}
+
+        # Actually merge these correctly!
+        for k, v in cf.decompiler.arguments.items():
+            # v is a set
+            if k in source:
+                source[k].update(v)
+            else:
+                source[k] = v
+        if hasattr(cf.debug, "local_vars"):
+            target = {**cf.debug.local_vars}
+            for k, v in cf.debug.arguments.items():
+                # v is a set
+                if k in target:
+                    target[k].update(v)
+                else:
+                    target[k] = v
+        else:
+            target = {}
 
         # Remove variables that overlap on memory or don't appear in the code tokens
         source_code_tokens_set = set(code_tokens[code_tokens.index("{"):])
-        #target_code_tokens_set = set(tokenize_raw_code(cf.debug.raw_code))
 
-        source = Example.filter(source, source_code_tokens_set)
-        # target = Example.filter(target, target_code_tokens_set, set(source.keys()))
-        target = Example.filter(target, None, set(source.keys()))
+        source, source_filtered_out = Example.filter(source, source_code_tokens_set, filter_out_duplicate_locations=filter_dups)
+        target, target_filtered_out = Example.filter(target, None, set(source.keys()), filter_non_user_names=True, filter_out_duplicate_locations=filter_dups)
 
-        # Assign type "Disappear" to variables not existing in the ground truth
+        # Optionally assign type "Disappear" to variables not existing in the
+        # ground truth.  EJS thinks this may be harmful since the model learns
+        # to overzealously predict disappear.
+
+        # Note: Need to copy source.keys() so we don't change the list while
+        # iterating.
+        for loc in list(source.keys()):
+            if use_disappear:
+                if loc not in target.keys():
+                    target[loc] = [Variable(Disappear(), "disappear", False)] * len(source[loc])
+            else:
+                if loc in source.keys() and loc not in target.keys():
+                    del source[loc]
+
         varnames = set()
-        for loc in source.keys():
-            if loc not in target.keys():
-                target[loc] = Variable(Disappear(), "", False)
-        # Add special tokens to variables  to prevnt being sub-tokenized in BPE
-        for var in source.values():
-            varname = var.name
-            varnames.add(varname)
+        # Add special tokens to variable names
+        for varlist in source.values():
+            for var in varlist:
+                varname = var.name
+                varnames.add(varname)
         for idx in range(len(code_tokens)):
             if code_tokens[idx] in varnames:
                 code_tokens[idx] = f"@@{code_tokens[idx]}@@"
+
+        other_info = {
+            'source_filtered': source_filtered_out,
+            'target_filtered': target_filtered_out,
+        }
 
         return cls(
             name,
@@ -106,8 +146,9 @@ class Example:
             source,
             target,
             kwargs["binary_file"],
-            valid=name == cf.debug.name and source and "halt_baddata" not in source_code_tokens_set,
+            valid=source and "halt_baddata" not in source_code_tokens_set,
             raw_code=raw_code,
+            other_info=other_info
         )
 
     @staticmethod
@@ -115,24 +156,36 @@ class Example:
         mapping: Mapping[Location, Set[Variable]],
         code_tokens: Optional[Set[str]] = None,
         locations: Optional[Set[Location]] = None,
-    ) -> Mapping[Location, Variable]:
+        filter_non_user_names: bool = False,
+        filter_out_duplicate_locations: bool = True
+    ) -> Mapping[Location, Set[Variable]]:
         """Discard and leave these for future work:
 
         Multiple variables sharing a memory location (no way to determine ground truth);
         Variables not appearing in code (no way to get representation);
         Target variables not appearing in source (useless ground truth);
         """
-        ret: Mapping[Location, Set[Variable]] = {}
+        ret: Mapping[Location, List[Variable]] = defaultdict(list)
+
+        filtered = set()
+
         for location, variable_set in mapping.items():
-            if len(variable_set) > 1:
+            for v in variable_set:
+                filtered.add((location, v))
+            if len(variable_set) > 1 and filter_out_duplicate_locations:
+                print(f"Warning: Ignoring location {location} with multiple variables {variable_set}")
                 continue
-            var = list(variable_set)[0]
-            if code_tokens is not None and not var.name in code_tokens:
-                continue
-            if locations is not None and not location in locations:
-                continue
-            ret[location] = var
-        return ret
+
+            for var in variable_set:
+                if code_tokens is not None and not var.name in code_tokens:
+                    continue
+                if locations is not None and not location in locations:
+                    continue
+                if filter_non_user_names and not var.user:
+                    continue
+                filtered.remove((location, var))
+                ret[location].append(var)
+        return ret, {x.name: loc.json_key() for loc, x in filtered}
 
     @property
     def is_valid_example(self):
@@ -147,8 +200,7 @@ def identity(x):
 def get_src_len(e):
     return e.source_seq_length
 
-
-class Dataset(wds.Dataset):
+class Dataset(IterableDataset):
 
     SHUFFLE_BUFFER = 5000
     SORT_BUFFER = 512
@@ -157,14 +209,13 @@ class Dataset(wds.Dataset):
         # support wildcards
         urls = sorted(glob.glob(url))
         urls = urls[: int(percent * len(urls))]
-        super().__init__(urls)
+
         if config:
             # annotate example for training
-            from utils.vocab import Vocab
-            print(config["vocab_file"])
             self.vocab = Vocab.load(config["vocab_file"])
-            with open(config["typelib_file"]) as type_f:
-                self.typelib = TypeLibCodec.decode(type_f.read())
+            # do we need this?
+            #with open(config["typelib_file"]) as type_f:
+            #    self.typelib = TypeLibCodec.decode(type_f.read())
             self.max_src_tokens_len = config["max_src_tokens_len"]
             self.max_num_var = config["max_num_var"]
             annotate = self._annotate
@@ -175,13 +226,51 @@ class Dataset(wds.Dataset):
             # for creating the vocab
             annotate = identity
             sort = identity
-        self = (
-            self.pipe(Dataset._file_iter_to_line_iter)
-            .map(Example.from_json)
-            .map(annotate)
-            .shuffle(Dataset.SHUFFLE_BUFFER)
-            .pipe(sort)
-        )
+
+        if not urls:
+
+            # Dummy dataset for utils.infer
+
+            self.len = None
+            self.wds = None
+
+        else:
+
+            self.wds = (
+                wds.WebDataset(urls, empty_check=False, shardshuffle=True)
+                .compose(Dataset._file_iter_to_line_iter)
+                .map(Example.from_json)
+                .map(annotate)
+                .shuffle(Dataset.SHUFFLE_BUFFER)
+                .compose(sort)
+            )
+
+            # Estimate size of dataset
+            # XXX: Limit number of files we read or use a timer?  Right
+            # now we use all of them.
+            try:
+                line_dataset = (
+                    wds.WebDataset(urls, shardshuffle=False)
+                    .compose(Dataset._file_iter_to_line_iter)
+                )
+                #print(f"URLs: {urls} dataset: {line_dataset}")
+                #print("Estimating size of dataset...")
+                self.len = sum(1 for _line in line_dataset)
+            except:
+                # This might fail if we create a dummy dataset, such as in
+                # utils.infer.
+                self.len = None
+
+    def __len__(self):
+        return self.len
+
+    # We need this for IterableDataset
+    def __iter__(self):
+        return iter(self.wds)
+
+    # Should we forward to webdataset?
+    #def __getattr__(self, name):
+    #    return getattr(self.wds, name)
 
     @staticmethod
     def _sort(example_iter):
@@ -241,24 +330,52 @@ class Dataset(wds.Dataset):
         tgt_var_subtypes = []
         tgt_var_type_sizes = []
         tgt_var_type_objs = []
-        tgt_var_src_mems = []
+        src_var_locs_encoded = []
         tgt_names = []
-        # variables on registers first, followed by those on stack
-        locs = sorted(
-            example.source,
-            key=lambda x: sub_tokens.index(f"@@{example.source[x].name}@@")
-            if f"@@{example.source[x].name}@@" in sub_tokens
-            else self.max_src_tokens_len,
-        )
-        stack_pos = [x.offset for x in example.source if isinstance(x, Stack)]
+
+        locs = sorted(example.source.keys(), key=lambda loc: repr(loc))
+
+        stack_pos = [x.offset for x in example.source.keys() if isinstance(x, Stack)]
         stack_start_pos = max(stack_pos) if stack_pos else None
-        for loc in locs[: self.max_num_var]:
-            src_var = example.source[loc]
-            tgt_var = example.target[loc]
+
+        def var_loc_in_func(loc):
+            # TODO: fix the magic number (1030) for computing vocabulary idx
+            # TODO: add vocabulary for unknown locations?
+            if isinstance(loc, Register):
+                return 1030 + self.vocab.regs[loc.name]
+            elif isinstance(loc, Unknown):
+                return 2 # unknown
+            else:
+                from utils.vocab import VocabEntry
+
+                return (
+                    3 + stack_start_pos - loc.offset
+                    if stack_start_pos - loc.offset < VocabEntry.MAX_STACK_SIZE
+                    else 2
+                )
+
+        def for_src_var(loc, src_var):
+            nonlocal src_var_names, src_var_types_id, src_var_types_str, src_var_locs_encoded
             src_var_names.append(f"@@{src_var.name}@@")
-            tgt_var_names.append(f"@@{tgt_var.name}@@")
             src_var_types_id.append(types_model.lookup_decomp(str(src_var.typ)))
             src_var_types_str.append(str(src_var.typ))
+            # Memory
+            # 0: absolute location of the variable in the function, e.g.,
+            #   for registers: Reg 56
+            #   for stack: relative position to the first variable
+            # 1: size of the type
+            # 2, 3, ...: start offset of fields in the type
+
+            src_var_locs_encoded.append(
+                [var_loc_in_func(loc)]
+                + types_model.encode_memory(
+                    (src_var.typ.size,) + src_var.typ.start_offsets()
+                )
+            )
+
+        def for_tgt_var(loc, tgt_var):
+            nonlocal tgt_var_names, tgt_var_types_id, tgt_var_types_str, tgt_var_subtypes, tgt_var_type_sizes, tgt_var_type_objs, tgt_names
+            tgt_var_names.append(f"@@{tgt_var.name}@@")
             tgt_var_types_id.append(types_model[str(tgt_var.typ)])
             tgt_var_types_str.append(str(tgt_var.typ))
             if types_model[str(tgt_var.typ)] == types_model.unk_id:
@@ -268,32 +385,13 @@ class Dataset(wds.Dataset):
             tgt_var_type_sizes.append(len(subtypes))
             tgt_var_subtypes += subtypes
             tgt_var_type_objs.append(tgt_var.typ)
-            # Memory
-            # 0: absolute location of the variable in the function, e.g.,
-            #   for registers: Reg 56
-            #   for stack: relative position to the first variable
-            # 1: size of the type
-            # 2, 3, ...: start offset of fields in the type
-            def var_loc_in_func(loc):
-                # TODO: fix the magic number for computing vocabulary idx
-                if isinstance(loc, Register):
-                    return 1030 + self.vocab.regs[loc.name]
-                else:
-                    from utils.vocab import VocabEntry
-
-                    return (
-                        3 + stack_start_pos - loc.offset
-                        if stack_start_pos - loc.offset < VocabEntry.MAX_STACK_SIZE
-                        else 2
-                    )
-
-            tgt_var_src_mems.append(
-                [var_loc_in_func(loc)]
-                + types_model.encode_memory(
-                    (src_var.typ.size,) + src_var.typ.start_offsets()
-                )
-            )
             tgt_names.append(tgt_var.name)
+
+        for loc in locs[: self.max_num_var]:
+            for src_var in example.source[loc]:
+                for_src_var(loc, src_var)
+            for tgt_var in example.target[loc]:
+                for_tgt_var(loc, tgt_var)
 
         setattr(example, "src_var_names", src_var_names)
         setattr(example, "tgt_var_names", tgt_var_names)
@@ -305,11 +403,11 @@ class Dataset(wds.Dataset):
             )
         setattr(example, "src_var_types", src_var_types_id)
         setattr(example, "src_var_types_str", src_var_types_str)
+        setattr(example, "src_var_locs", src_var_locs_encoded)
         setattr(example, "tgt_var_types", tgt_var_types_id)
         setattr(example, "tgt_var_types_str", tgt_var_types_str)
         setattr(example, "tgt_var_subtypes", tgt_var_subtypes)
         setattr(example, "tgt_var_type_sizes", tgt_var_type_sizes)
-        setattr(example, "tgt_var_src_mems", tgt_var_src_mems)
 
         return example
 
@@ -348,9 +446,9 @@ class Dataset(wds.Dataset):
             torch.tensor(e.src_var_types, dtype=torch.long) for e in examples
         ]
         src_type_id = pad_sequence(src_type_ids, batch_first=True)
-        type_ids = [torch.tensor(e.tgt_var_types, dtype=torch.long) for e in examples]
-        target_type_id = pad_sequence(type_ids, batch_first=True)
-        assert target_type_id.shape == variable_mention_num.shape
+        tgt_type_ids = [torch.tensor(e.tgt_var_types, dtype=torch.long) for e in examples]
+        target_type_id = pad_sequence(tgt_type_ids, batch_first=True)
+        assert target_type_id.shape == variable_mention_num.shape, f"{target_type_id.shape} != {variable_mention_num.shape}"
 
         subtype_ids = [
             torch.tensor(e.tgt_var_subtypes, dtype=torch.long) for e in examples
@@ -361,18 +459,20 @@ class Dataset(wds.Dataset):
         ]
         target_type_sizes = pad_sequence(type_sizes, batch_first=True)
 
-        target_mask = src_type_id > 0
-        target_type_src_mems = [
+        src_type_mask = src_type_id > 0
+        tgt_type_mask = target_type_id > 0
+
+        src_var_locs = [
             torch.tensor(mems, dtype=torch.long)
             for e in examples
-            for mems in e.tgt_var_src_mems
+            for mems in e.src_var_locs
         ]
-        target_type_src_mems = pad_sequence(target_type_src_mems, batch_first=True)
-        target_type_src_mems_unflattened = torch.zeros(
-            *target_mask.shape, target_type_src_mems.size(-1), dtype=torch.long
+        src_var_locs = pad_sequence(src_var_locs, batch_first=True)
+        src_var_locs_unflattened = torch.zeros(
+            *src_type_mask.shape, src_var_locs.size(-1), dtype=torch.long
         )
-        target_type_src_mems_unflattened[target_mask] = target_type_src_mems
-        target_type_src_mems = target_type_src_mems_unflattened
+        src_var_locs_unflattened[src_type_mask] = src_var_locs
+        src_var_locs = src_var_locs_unflattened
 
         # renaming task
         if hasattr(examples[0], "tgt_var_name_ids"):
@@ -397,18 +497,19 @@ class Dataset(wds.Dataset):
                 variable_mention_mask=variable_mention_mask,
                 variable_mention_num=variable_mention_num,
                 variable_encoding_mask=variable_encoding_mask,
-                target_type_src_mems=target_type_src_mems,
+                #target_type_src_mems=target_type_src_mems,
                 src_type_id=src_type_id,
-                target_mask=target_mask,
-                target_submask=target_subtype_id > 0,
-                target_type_sizes=target_type_sizes,
+                src_type_mask=src_type_mask,
+                src_var_locs=src_var_locs,
+                #target_submask=target_subtype_id > 0,
+                #target_type_sizes=target_type_sizes,
             ),
             dict(
                 tgt_var_names=sum([e.tgt_var_names for e in examples], []),
                 target_type_id=target_type_id,
                 target_name_id=target_name_id,
                 target_subtype_id=target_subtype_id,
-                target_mask=target_mask,
+                target_type_mask=tgt_type_mask,
                 test_meta=[e.test_meta for e in examples],
             ),
         )

@@ -8,7 +8,6 @@ Options:
     --max=<int>                max dataset size [default: -1]
     --shard-size=<int>         shard size [default: 5000]
     --test-file=<file>         test file
-    --no-filtering             do not filter files
 """
 
 import glob
@@ -20,8 +19,6 @@ import shutil
 import sys
 import tarfile
 from json import dumps
-from multiprocessing import Process
-from typing import Tuple
 
 import numpy as np
 import ujson as json
@@ -29,7 +26,7 @@ from docopt import docopt
 from tqdm import tqdm
 
 from utils.dataset import Example
-from utils.ghidra_types import TypeInfo, TypeLib, TypeLibCodec
+from utils.ghidra_types import TypeLib, TypeLibCodec
 from utils.ghidra_function import CollectedFunction
 from utils.code_processing import canonicalize_code
 
@@ -48,9 +45,13 @@ def example_generator(json_str_list):
         except ValueError:
             print(json_str, file=sys.stderr)
             continue
-        
+
         example = Example.from_cf(
-            cf, binary_file=meta, max_stack_length=1024, max_type_size=1024
+            cf,
+            prediction=False,
+            binary_file=meta,
+            max_stack_length=1024,
+            max_type_size=1024,
         )
 
         if example.is_valid_example:
@@ -79,22 +80,6 @@ def json_line_reader(args):
         print(f"Bad Gzip file {bin_file_name} unknown error")
 
     return func_json_list
-
-
-def type_dumper(args):
-    tgt_folder, fname = args
-    typelib = TypeLib()
-    with open(fname, "r") as f:
-        for line in f:
-            e = Example.from_json(json.loads(line))
-            for var in e.target.values():
-                typelib.add(var.typ)
-    typelib.sort()
-    with open(
-        os.path.join(tgt_folder, "types", fname.split("/")[-1]), "w"
-    ) as type_lib_file:
-        encoded = TypeLibCodec.encode(typelib)
-        type_lib_file.write(encoded)
 
 
 def main(args):
@@ -129,15 +114,15 @@ def main(args):
 
     print("loading examples")
     with multiprocessing.Pool(num_workers) as pool:
-        json_iter = pool.imap(
+        json_iter = pool.imap_unordered(
             json_line_reader,
             ((input_folder, fname) for fname in input_fnames),
             chunksize=64,
         )
 
-        example_iter = pool.imap(example_generator, json_iter, chunksize=64)
+        example_iter = pool.imap_unordered(example_generator, json_iter, chunksize=64)
 
-        for examples in tqdm(example_iter):
+        for examples in tqdm(example_iter, desc="Writing output", total=len(input_fnames)):
             if not examples:
                 continue
             json_file_name = examples[0].binary_file["file_name"].split("/")[-1]
@@ -147,6 +132,15 @@ def main(args):
                     all_functions.setdefault(json_file_name, dict())[
                         example.name
                     ] = example.canonical_code
+
+            # Symlink the type file from the unprocessed folder to the preprocessed folder.
+
+            base_file_name = os.path.splitext(json_file_name)[0]
+            type_file_name = base_file_name + ".json.gz"
+
+            input_type_file = os.path.join(input_folder, "types", type_file_name)
+
+            os.symlink(input_type_file, os.path.join(tgt_folder, "types", type_file_name))
 
             valid_example_count += len(examples)
 
@@ -181,33 +175,35 @@ def main(args):
     test_files_set = set(test_files)
     train_files = [fname for fname in all_files if fname not in test_files_set]
 
-    if dev_file_num == 0:
+    if dev_file_num == 0 and not test_file:
         dev_file_num = int(len(train_files) * 0.1)
 
     np.random.shuffle(train_files)
-    dev_files = train_files[-dev_file_num:]
-    train_files = train_files[:-dev_file_num]
+    dev_files = train_files[-dev_file_num:] if dev_file_num > 0 else []
+    train_files = train_files[:-dev_file_num] if dev_file_num > 0 else train_files
 
     # Create types from filtered training set
-    with multiprocessing.Pool(num_workers) as pool:
-        pool.map(
-            type_dumper,
-            ((tgt_folder, fname) for fname in train_files),
-            chunksize=64,
-        )
     print("reading typelib")
     typelib = TypeLib()
     for fname in tqdm(train_files):
         fname = os.path.basename(fname)
-        fname = fname[: fname.index(".")] + ".jsonl"
-        typelib.add_json_file(os.path.join(tgt_folder, "types", fname))
-    typelib.prune(5)
+        fname = fname[: fname.index(".")] + ".json.gz"
+        typelib.add_json_file(os.path.join(tgt_folder, "types", fname), ungzip=True)
+    
     typelib.sort()
 
     print("dumping typelib")
-    with open(os.path.join(tgt_folder, "typelib.json"), "w") as type_lib_file:
+    with open(os.path.join(tgt_folder, "typelib_complete.json"), "w") as type_lib_file:
         encoded = TypeLibCodec.encode(typelib)
         type_lib_file.write(encoded)
+
+    # Prune the type library.  This may remove subtypes of course.
+    if not test_file: typelib.prune(5)
+
+    print("dumping pruned typelib")
+    with open(os.path.join(tgt_folder, "typelib.json"), "w") as pruned_type_lib_file:
+        encoded = TypeLibCodec.encode(typelib)
+        pruned_type_lib_file.write(encoded)
 
     train_functions = dict()
     for train_file in train_files:

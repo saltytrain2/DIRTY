@@ -118,6 +118,7 @@ class XfmrDecoder(nn.Module):
         input_dict: Dict[str, torch.Tensor],
         variable_type_logits: torch.Tensor,
         beam_size: int = 0,
+        return_non_best: bool = False,
     ):
         if beam_size == 0:
             return self.greedy_decode(
@@ -125,7 +126,8 @@ class XfmrDecoder(nn.Module):
             )
         else:
             return self.beam_decode(
-                context_encoding, input_dict, variable_type_logits, beam_size
+                context_encoding, input_dict, variable_type_logits, beam_size,
+                return_non_best=return_non_best
             )
 
     def greedy_decode(
@@ -420,7 +422,7 @@ class XfmrInterleaveDecoder(XfmrDecoder):
         tgt_mask = XfmrDecoder.generate_square_subsequent_mask(tgt.shape[1], tgt.device)
         # TransformerModels have batch_first=False
         tgt_padding_mask = XfmrInterleaveDecoder.interleave_2d(
-            target_dict["target_mask"], target_dict["target_mask"]
+            target_dict["target_type_mask"], target_dict["target_type_mask"]
         )
         hidden = self.decoder(
             tgt.transpose(0, 1),
@@ -440,23 +442,25 @@ class XfmrInterleaveDecoder(XfmrDecoder):
         self,
         context_encoding: Dict[str, torch.Tensor],
         input_dict: Dict[str, torch.Tensor],
-        variable_type_logits: torch.Tensor,
+        #variable_type_logits: torch.Tensor,
         beam_size: int = 0,
+        return_non_best: bool = False
     ):
+
         if beam_size == 0:
             return self.greedy_decode(
-                context_encoding, input_dict, variable_type_logits
+                context_encoding, input_dict
             )
         else:
             return self.beam_decode(
-                context_encoding, input_dict, variable_type_logits, beam_size
+                context_encoding, input_dict, beam_size, return_non_best=return_non_best
             )
 
     def greedy_decode(
         self,
         context_encoding: Dict[str, torch.Tensor],
         input_dict: Dict[str, torch.Tensor],
-        variable_type_logits: torch.Tensor,
+        #variable_type_logits: torch.Tensor,
     ):
         """Greedy decoding"""
 
@@ -464,7 +468,7 @@ class XfmrInterleaveDecoder(XfmrDecoder):
             context_encoding["variable_encoding"], context_encoding["variable_encoding"]
         )
         tgt_padding_mask = XfmrInterleaveDecoder.interleave_2d(
-            input_dict["target_mask"], input_dict["target_mask"]
+            input_dict["src_type_mask"], input_dict["src_type_mask"]
         )
         batch_size, max_time_step, _ = variable_encoding.shape
         tgt = torch.zeros(batch_size, 1, self.config["target_embedding_size"]).to(
@@ -480,7 +484,7 @@ class XfmrInterleaveDecoder(XfmrDecoder):
             mem_logits_list = []
             idx = 0
             for b in range(batch_size):
-                nvar = input_dict["target_mask"][b].sum().item()
+                nvar = input_dict["src_type_mask"][b].sum().item()
                 mem_logits_list.append(mem_logits[idx : idx + nvar])
                 idx += nvar
             assert idx == mem_logits.shape[0]
@@ -550,25 +554,26 @@ class XfmrInterleaveDecoder(XfmrDecoder):
         type_preds = torch.stack(type_preds_list).transpose(0, 1)
         name_preds = torch.stack(name_preds_list).transpose(0, 1)
         return (
-            type_preds[input_dict["target_mask"]],
-            name_preds[input_dict["target_mask"]],
+            type_preds[input_dict["src_type_mask"]],
+            name_preds[input_dict["src_type_mask"]],
         )
 
     def beam_decode(
         self,
         context_encoding: Dict[str, torch.Tensor],
         input_dict: Dict[str, torch.Tensor],
-        variable_type_logits: torch.Tensor,
+        #variable_type_logits: torch.Tensor,
         beam_size: int = 5,
         length_norm: bool = True,
+        return_non_best: bool = False
     ):
         """Beam search decoding"""
 
         variable_encoding = XfmrInterleaveDecoder.interleave_3d(
             context_encoding["variable_encoding"], context_encoding["variable_encoding"]
         )
-        tgt_padding_mask = XfmrInterleaveDecoder.interleave_2d(
-            input_dict["target_mask"], input_dict["target_mask"]
+        padding_mask = XfmrInterleaveDecoder.interleave_2d(
+            input_dict["src_type_mask"], input_dict["src_type_mask"]
         )
         batch_size, max_time_step, _ = variable_encoding.shape
         tgt = torch.zeros(batch_size, 1, self.config["target_embedding_size"]).to(
@@ -584,7 +589,7 @@ class XfmrInterleaveDecoder(XfmrDecoder):
             mem_logits_list = []
             idx = 0
             for b in range(batch_size):
-                nvar = input_dict["target_mask"][b].sum().item()
+                nvar = input_dict["src_type_mask"][b].sum().item()
                 mem_logits_list.append(mem_logits[idx : idx + nvar])
                 idx += nvar
             assert idx == mem_logits.shape[0]
@@ -608,7 +613,7 @@ class XfmrInterleaveDecoder(XfmrDecoder):
         # context_encoding["variable_encoding"]: batch, max_time, hidden
 
         tgt = tile(tgt, beam_size, dim=0)
-        tiled_target_mask = tile(tgt_padding_mask, beam_size, dim=0)
+        tiled_target_mask = tile(padding_mask, beam_size, dim=0)
         code_token_encoding = tile(
             context_encoding["code_token_encoding"], beam_size, dim=0
         )
@@ -628,14 +633,14 @@ class XfmrInterleaveDecoder(XfmrDecoder):
             scores = logits[:, 0].view(batch_size, beam_size, -1)
             select_indices_array = []
             for b, bm in enumerate(beams):
-                if not tgt_padding_mask[b, idx]:
+                if not padding_mask[b, idx]:
                     select_indices_array.append(
                         torch.arange(beam_size).to(tgt.device) + b * beam_size
                     )
                     continue
                 if idx % 2 == 0:
                     s = scores[b, :, : self.retype_vocab_size]
-                    if self.mem_mask == "soft" and tgt_padding_mask[b, idx]:
+                    if self.mem_mask == "soft" and padding_mask[b, idx]:
                         s += mem_logits_list[b][idx // 2]
                 else:
                     s = scores[b, :, self.retype_vocab_size :]
@@ -647,7 +652,7 @@ class XfmrInterleaveDecoder(XfmrDecoder):
                 torch.stack(
                     [
                         bm.getCurrentState()
-                        if tgt_padding_mask[b, idx]
+                        if padding_mask[b, idx]
                         else torch.zeros(beam_size, dtype=torch.long).to(tgt.device)
                         for b, bm in enumerate(beams)
                     ]
@@ -674,14 +679,36 @@ class XfmrInterleaveDecoder(XfmrDecoder):
                 tgt = torch.cat([tgt, tgt_step], dim=1)
 
         all_type_hyps, all_name_hyps, all_scores = [], [], []
+        # include non-best hypotheses
+        all_nonbest_type_hyps, all_nonbest_name_hyps = [], []
         for j in range(batch_size):
             b = beams[j]
             scores, ks = b.sortFinished(minimum=beam_size)
-            times, k = ks[0]
-            hyp = b.getHyp(times, k)
-            hyp = torch.tensor(hyp).view(-1, 2).t()
+
+            def get(i):
+                times, k = ks[i]
+                hyp = b.getHyp(times, k)
+                hyp = torch.tensor(hyp).view(-1, 2).t()
+                return hyp
+
+            # The batch is by example, and the time steps of the hypothesis are
+            # variable/type predictions.
+            hyp = get(0)
+
             all_type_hyps.append(hyp[0])
             all_name_hyps.append(hyp[1])
             all_scores.append(scores[0])
 
-        return torch.cat(all_type_hyps), torch.cat(all_name_hyps)
+            if return_non_best:
+                all_hyps = (get(i) for i in range(beam_size))
+                all_hyps = ((tup[0], tup[1]) for tup in all_hyps)
+                all_hyps = zip(*all_hyps)
+                all_hyps = tuple(torch.stack(x) for x in all_hyps)
+
+                all_nonbest_type_hyps.append(all_hyps[0])
+                all_nonbest_name_hyps.append(all_hyps[1])
+
+        if return_non_best:
+            return torch.cat(all_type_hyps), torch.cat(all_name_hyps), torch.cat(all_nonbest_type_hyps), torch.cat(all_nonbest_name_hyps)
+        else:
+            return torch.cat(all_type_hyps), torch.cat(all_name_hyps)

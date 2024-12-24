@@ -46,9 +46,12 @@
     "hidden_size": $['mem_encoder'].hidden_size,
   },
   "train": {
+    "torch_float32_matmul": "medium", # high, highest
+    # 16-mixed/AMP can lead to NaN errors
+    "precision": "32", #bit
     "batch_size": 16,
     "grad_accum_step": 4,
-    "max_epoch": 15,
+    "max_epoch": 25,
     "lr": 1e-4,
     "patience": 10,
     "check_val_every_n_epoch": 1,

@@ -18,6 +18,7 @@ def add_options(parser):
 
 def load_data(config_file):
     config = json.loads(_jsonnet.evaluate_file(config_file))["data"]
+    # This is a reason why accuracy using this module is slightly different
     config["max_num_var"] = 1 << 30
     dataset = Dataset(config["test_file"], config)
     return dataset
@@ -188,7 +189,7 @@ TYPE_METRICS = {
 }
 
 NAME_METRICS = {
-    "accuracy": acc,
+    "acc": acc,
     "body_in_train_acc": body_in_train_acc,
     "body_not_in_train_acc": body_not_in_train_acc,
     "no_disappear_acc": no_disappear_acc,
@@ -204,14 +205,15 @@ def evaluate(dataset, results, type_metrics, name_metrics):
     pred_names, ref_names, pred_types, ref_types = [], [], [], []
     test_meta_types, test_meta_names = [], []
     examples_w_structs = []
-    num_functions, num_all_disappear, num_no_disappear = 0, 0, 0
+    num_functions, num_all_disappear, num_no_disappear, num_filtered_variables = 0, 0, 0, 0
+
     for example in tqdm(dataset):
         # one example is one function: check if all variables are disappear or if all variables are actual variables
         all_disappear = True
         no_disappear = True
 
-        for tgt_type in example.tgt_var_types_str:
-            if dataset.dataset.vocab.types.id2word[dataset.dataset.vocab.types[tgt_type]] == "disappear":
+        for tgt_type_name in example.tgt_var_types_str:
+            if tgt_type_name == "disappear":
                 no_disappear = False
             else:
                 all_disappear = False
@@ -222,31 +224,31 @@ def evaluate(dataset, results, type_metrics, name_metrics):
         if no_disappear:
             num_no_disappear += 1
 
-        for src_name, tgt_name, tgt_type in zip(
+        for src_name, tgt_name, tgt_type_name in zip(
             example.src_var_names, example.tgt_var_names, example.tgt_var_types_str
         ):
-            pred_type, _ = (
+            pred_type_name, _ = (
                 results.get(example.binary, {})
                 .get(example.name, {})
                 .get(src_name[2:-2], ("", ""))
             )
-            pred_types.append(pred_type)
-            ref_types.append(tgt_type)
+            pred_types.append(pred_type_name)
+            ref_types.append(tgt_type_name)
             test_meta = example.test_meta.copy()
-            test_meta["is_struct"] = dataset.dataset.vocab.types.id2word[
-                dataset.dataset.vocab.types[tgt_type]
-            ].startswith("struct ")
+            test_meta["is_struct"] = tgt_type_name.startswith("struct ")
             if test_meta["is_struct"]:
                 examples_w_structs.append(example.binary)
 
-            test_meta["is_disappear"] = dataset.dataset.vocab.types.id2word[
-                dataset.dataset.vocab.types[tgt_type]
-            ].startswith("disappear")
+            test_meta["is_disappear"] = tgt_type_name.startswith("disappear")
 
             test_meta["func_all_disappear"] = all_disappear
             test_meta["func_no_disappear"] = no_disappear
             test_meta_types.append(test_meta)
-            if src_name != tgt_name and tgt_name != "@@@@":
+
+            # Note: This is why accuracy metrics slightly differ from the
+            # prediction step.
+
+            if src_name != tgt_name and tgt_name != "@@@@" and tgt_name != "@@disappear@@":
                 # only report need_rename
                 _, pred_name = (
                     results.get(example.binary, {})
@@ -256,6 +258,9 @@ def evaluate(dataset, results, type_metrics, name_metrics):
                 pred_names.append(pred_name)
                 ref_names.append(tgt_name[2:-2])
                 test_meta_names.append(test_meta)
+            else:
+                num_filtered_variables += 1
+                #print(f"Warning: Skipping {src_name} {tgt_name}")
     pred_types = np.array(pred_types, dtype=object)
     ref_types = np.array(ref_types, dtype=object)
 
@@ -271,7 +276,9 @@ def evaluate(dataset, results, type_metrics, name_metrics):
 
     wandb.log(
         {
-            "total variables": len(test_meta_types),
+            "total variables with types": len(test_meta_types),
+            "total variables with names": len(test_meta_names),
+            "filtered variables names": num_filtered_variables,
             "num structs": struct_counter,
             "num disappear": disappear_counter
         }

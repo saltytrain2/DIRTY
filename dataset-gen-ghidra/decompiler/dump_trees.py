@@ -7,7 +7,7 @@ from typing import Dict, List
 
 from ghidra.app.decompiler import DecompInterface
 
-from ghidra_ast import AST
+#from ghidra_ast import AST
 from collect import Collector
 from ghidra_function import CollectedFunction, Function
 from ghidra_types import TypeLib
@@ -22,7 +22,11 @@ class CollectDecompiler(Collector):
         print("Loading functions")
         # Load the functions collected by CollectDebug
         with open(os.environ["FUNCTIONS"], "rb") as functions_fh:
-            self.debug_functions: Dict[int, Function] = pickle.load(functions_fh)
+            try:
+                self.debug_functions: Dict[int, Function] = pickle.load(functions_fh)
+            except:
+                print("Unable to load debug_functions")
+                self.debug_functions = dict()
         print("Done")
         self.functions: List[CollectedFunction] = list()
         self.output_file_name = os.path.join(
@@ -45,9 +49,13 @@ class CollectDecompiler(Collector):
 
         decomp = DecompInterface()
         decomp.toggleSyntaxTree(False)
-        decomp.openProgram(currentProgram)
+        decomp.openProgram(currentProgram())
 
-        for f in currentProgram.getListing().getFunctions(True):
+        for f in currentProgram().getListing().getFunctions(True):
+
+            if f.isThunk():
+                continue
+
             # Decompile
             decomp_results = decomp.decompileFunction(f, 30, None)
             f = decomp_results.getFunction()
@@ -89,7 +97,7 @@ class CollectDecompiler(Collector):
             self.functions.append(
                 CollectedFunction(
                     ea=f.getEntryPoint().toString(),
-                    debug=self.debug_functions[f.getEntryPoint().toString()],
+                    debug=self.debug_functions.get(f.getEntryPoint().toString(), None),
                     decompiler=decompiler,
                 )
             )

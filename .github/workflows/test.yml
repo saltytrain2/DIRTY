@@ -1,48 +1,82 @@
-name: Test
+name: Test DIRTY Ghidra
 
 on:
   push:
-    branches: [ main ]
   pull_request:
-    branches: [ main ]
-
   workflow_dispatch:
 
 jobs:
-  install:
-    # The type of runner that the job will run on
+  test-train:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04]
-        python-version: [3.6, 3.7, 3.8]
+        os: [ubuntu-22.04, ubuntu-24.04]
+        python-version: ["3.10", "3.11"]
 
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
-        with:
-          python-version: ${{ matrix.python-version }}
+      - uses: actions/checkout@v4
+      - name: Setup
+        uses: ./.github/actions/setup
 
-      - name: Upgrade pip
-        run: python -m pip install --upgrade pip setuptools wheel
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-      - name: Download data and model
-        working-directory: ./dirty
+      - name: Generate dataset
         run: |
-          wget -q cmu-itl.s3.amazonaws.com/dirty/dirt.tar.gz -O dirt.tar.gz
-          tar -xzf dirt.tar.gz
-          mkdir exp_runs/
-          wget -q cmu-itl.s3.amazonaws.com/dirty/dirty_mt.ckpt -O exp_runs/dirty_mt.ckpt
+          set -ex
+          mkdir -p $DATASET_DIR
+          cd $DATASET_DIR
+          # Create some dummy programs
+          for n in $(seq 20); do echo -e "#include <stdio.h>\nint main(int argc, const char** argv) { printf(\"%d %d\\\\n\", $n, argc); }" > s$n.c; gcc -g s$n.c -o s$n; rm s$n.c; done
+          cd $GITHUB_WORKSPACE/dataset-gen-ghidra
+          python generate.py --verbose --ghidra $GHIDRA_INSTALL_DIR/support/analyzeHeadless -t 1 -b $DATASET_DIR -o $DATA_DIR/unprocessed
+          cd $DATA_DIR/unprocessed && python $GITHUB_WORKSPACE/dataset-gen-ghidra/gen_names.py $DATA_DIR/unprocessed
+        env:
+          DATASET_DIR: ${{ runner.temp }}/dataset
+          DATA_DIR: ${{ runner.temp }}/data
+
+      - name: Preprocess dataset
+        run: |
+          set -ex
+          cd $GITHUB_WORKSPACE/dirty
+          python -m utils.preprocess $DATA_DIR/unprocessed $DATA_DIR/unprocessed/files.txt $DATA_DIR/processed
+          ln -s $DATA_DIR/processed $(pwd)/data1
+          python -m utils.vocab --size=164 --use-bpe "$DATA_DIR/processed/"'train-*.tar' "$DATA_DIR/processed/typelib.json" data1/vocab.bpe10000
+        env:
+          DATA_DIR: ${{ runner.temp }}/data
+      - name: Train on dataset
+        run: |
+          set -ex
+          cd $GITHUB_WORKSPACE/dirty
           wandb offline
-      - name: Infer and evaluate
-        working-directory: ./dirty
+          python exp.py train multitask_test_ci.xfmr.jsonnet
+          find . -name '*.ckpt'
+  test-inference:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+        python-version: ["3.10", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Install huggingface-cli
+        run: pip install huggingface_hub[cli]
+
+      - name: Cache model files
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/model-dl
+          key: hf-model-dl
+
+      - name: Download model files
+        run: huggingface-cli download --repo-type model ejschwartz/dirty-ghidra --local-dir $MODEL_DL_DIR && cp -R $MODEL_DL_DIR/data1 $GITHUB_WORKSPACE/dirty/data1
+        env:
+          MODEL_DL_DIR: ${{ runner.temp }}/model-dl
+
+      - name: Run DIRTY inference
         run: |
-          python exp.py train --expname=eval_dirty_mt multitask_test_ci.xfmr.jsonnet --eval-ckpt exp_runs/dirty_mt.ckpt
-          cat test_result.json
-          cat test_result.json | jq ".test_retype_acc"
-          cat test_result.json | jq ".test_rename_acc"
-          cat test_result.json | jq ".test_retype_acc" | awk '{if ($1 < 0.6) exit 1}'
-          cat test_result.json | jq ".test_rename_acc" | awk '{if ($1 < 0.5) exit 1}'
+          $GHIDRA_INSTALL_DIR/support/analyzeHeadless projects MyProject -import /bin/ls -postScript $GITHUB_WORKSPACE/scripts/DIRTY_infer.py $(pwd)/infer_success.txt
+          test -f infer_success.txt

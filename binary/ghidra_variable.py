@@ -1,24 +1,19 @@
 """Information about variables in a function"""
 
 from json import dumps
-from typing import Any, Optional
+from typing import Any
 
 # Huge hack to get importing to work with the decompiler
 try:
     from ghidra_types import TypeLibCodec, TypeInfo
 except ImportError:
     from .ghidra_types import TypeLibCodec, TypeInfo
-# try:
-#     from dire_types import TypeLibCodec, TypeInfo
-# except ImportError:
-#     from .dire_types import TypeLibCodec, TypeInfo
 
 class Location:
     """A variable location"""
     def json_key(self):
         """Returns a string suitable as a key in a JSON dict"""
         pass
-
 
 class Register(Location):
     """A register
@@ -30,13 +25,13 @@ class Register(Location):
         self.name = name
 
     def json_key(self):
-        return self.name
+        return f"r{self.name}"
 
     def __eq__(self, other: Any) -> bool:
         return isinstance(other, Register) and self.name == other.name
 
     def __hash__(self) -> int:
-        return hash(self.name)
+        return hash(self.json_key())
 
     def __repr__(self) -> str:
         return f"Reg {self.name}"
@@ -58,18 +53,42 @@ class Stack(Location):
         return isinstance(other, Stack) and self.offset == other.offset
 
     def __hash__(self) -> int:
-        return hash(self.offset)
+        return hash(self.json_key())
 
     def __repr__(self) -> str:
         return f"Stk 0x{self.offset:x}"
 
+class Unknown(Location):
+    """An unknown storage location
+    
+    str: optional string description of the location
+    """
+
+    def __init__(self, str: str = "unknown"):
+        self.str = str
+
+    def json_key(self):
+        return f"u{self.str}"
+
+    def __eq__(self, other: Any) -> bool:
+        return isinstance(other, Unknown) and self.str == other.str
+
+    def __hash__(self) -> int:
+        return hash(self.json_key())
+
+    def __repr__(self) -> str:
+        return f"Unknown {self.str}"
 
 def location_from_json_key(key: str) -> "Location":
     """Hacky way to return a location from a JSON key"""
     if key.startswith("s"):
         return Stack(int(key[1:]))
-    else:
+    elif key.startswith("r"):
         return Register(key[1:])
+    elif key.startswith("u"):
+        return Unknown(key[1:])
+    else:
+        assert False
 
 class Variable:
     """A variable

@@ -1,4 +1,4 @@
-# Specialzed version for ghidra compatibility
+# Specialized version for ghidra compatibility
 
 import argparse
 import subprocess
@@ -15,7 +15,6 @@ from multiprocessing import Pool
 from typing import Iterable, Tuple
 
 from elftools.elf.elffile import ELFFile
-from elftools.common.exceptions import ELFRelocationError
 
 class Runner(object):
     file_dir = os.path.dirname(os.path.abspath(__file__))
@@ -29,6 +28,7 @@ class Runner(object):
         self._num_files = args.num_files
         self.verbose = args.verbose
         self.num_threads = args.num_threads
+        self.timeout = args.timeout
 
         self.env = os.environ.copy()
 
@@ -107,22 +107,24 @@ class Runner(object):
 
         ghidracall = [self.ghidra, path_to_dir, temp_dir, '-import', file_name, 
                       '-postScript', script_name, file_name + ".p", "-scriptPath", script_dir,
-                      '-max-cpu', "3", "-analysisTimeoutPerFile", str(timeout - 30), '-deleteProject']
-        # idacall = [self.ida, "-B", f"-S{script}", file_name]
-        output = ""
+                      '-max-cpu', "1", '-deleteProject']
+        if self.verbose:
+            print(f"Running {ghidracall}")
         try:
-            p = subprocess.Popen(ghidracall, env=env, start_new_session=True)
-            p.wait(timeout=timeout)
+            p = subprocess.Popen(ghidracall, env=env, start_new_session=True, 
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stdout, stderr = p.communicate(timeout=timeout)
+            if self.verbose:
+                print(stdout.decode())
+                print(stderr.decode())
         except subprocess.TimeoutExpired as e:
+            print(f"Timed out while running {ghidracall}")
             os.killpg(os.getpgid(p.pid), signal.SIGTERM)
             subprocess.run(f"rm -r {path_to_dir}/__*", shell=True)
         except subprocess.CalledProcessError as e:
             subprocess.run(f"rm -r {path_to_dir}/__*", shell=True)
-            pass
-            # output = e.output
-            # subprocess.call(["rm", "-f", f"{file_name}.i64"])
-        # if self.verbose:
-        #     print(output.decode("unicode_escape"))
+            if self.verbose:
+                print(e.output.decode())
 
     def extract_dwarf_var_names(self, filepath:str) -> set:
         """
@@ -134,13 +136,16 @@ class Runner(object):
         with open(filepath, 'rb') as f:
             elffile = ELFFile(f)
             if not elffile.has_dwarf_info():
-                return set()
+                if self.verbose:
+                    print(f"No dwarf info in {filepath}")
+                return None
             
             # for some reason, this is throwing an exception, give it if it does so
             try:
                 dwarfinfo = elffile.get_dwarf_info()
             except:
-                return set()
+                print(f"Error extracting dwarf info from {filepath}")
+                return None
 
             for CU in dwarfinfo.iter_CUs():
                 for DIE in CU.iter_DIEs():
@@ -150,10 +155,9 @@ class Runner(object):
                     for attr in DIE.attributes.values():
                         if attr.name == "DW_AT_name":
                             variable_names.add(attr.value.decode())
-            print(variable_names)
-            #print(len(variable_names))
+            if self.verbose:
+                print(f"Extracted variable names: {variable_names}")
             return variable_names
-            pass
 
     def run_one(self, args: Tuple[str, str]) -> None:
         path, binary = args
@@ -174,7 +178,7 @@ class Runner(object):
                 # Try stripping first, if it fails return
                 subprocess.call(["cp", file_path, stripped.name])
                 try:
-                    subprocess.call(["strip", "--strip-unneeded", stripped.name])
+                    subprocess.call(["strip", stripped.name])
                 except subprocess.CalledProcessError:
                     if self.verbose:
                         print(f"Could not strip {prefix}, skipping.")
@@ -192,20 +196,26 @@ class Runner(object):
                         print(f"{prefix} types already collected, skipping")
                 else:
                     # Collect from original
+                    if self.verbose:
+                        print(f"Collecting debug information")
                     subprocess.check_output(["cp", file_path, orig.name])
-                    # Timeout after 30s for the collect run
+
                     var_set = self.extract_dwarf_var_names(os.path.join(path, orig.name))
-                    if not var_set:
-                        return
-                    pickle_file = os.path.join(path, orig.name) + ".p"
-                    pickle.dump(var_set, open(pickle_file, 'wb'))
-                    self.run_decompiler(new_env, path, os.path.join(path, orig.name), self.COLLECT, timeout=180)
-                    os.remove(pickle_file)
+                    if var_set:
+                        pickle_file = os.path.join(path, orig.name) + ".p"
+                        pickle.dump(var_set, open(pickle_file, 'wb'))
+                        self.run_decompiler(new_env, path, os.path.join(path, orig.name), self.COLLECT, timeout=self.timeout)
+                        os.remove(pickle_file)
+                    else:
+                        if self.verbose:
+                            print(f"Unable to collect debug information for {prefix}")
                 # Dump trees
+                if self.verbose:
+                    print(f"Dumping trees")
                 pickle_file = os.path.join(path, stripped.name) + ".p"
                 pickle.dump(set(), open(pickle_file, 'wb'))
                 self.run_decompiler(
-                    new_env, path, os.path.join(path, stripped.name), self.DUMP_TREES, timeout=200
+                    new_env, path, os.path.join(path, stripped.name), self.DUMP_TREES, timeout=self.timeout
                 )
                 os.remove(pickle_file)
 
@@ -256,6 +266,13 @@ def main():
         metavar='BINARIES_DIR',
         help='directory containing binaries',
         required=True
+    )
+    parser.add_argument(
+        "--timeout",
+        metavar="TIMEOUT",
+        help="timeout for each binary",
+        default=30*60,
+        type=int
     )
     parser.add_argument(
         "-o", "--output_dir", metavar="OUTPUT_DIR", help="output directory", required=True,

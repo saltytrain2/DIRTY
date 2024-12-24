@@ -973,6 +973,29 @@ class Void(TypeInfo):
     def __str__(self) -> str:
         return "void"
 
+class TypeDef(TypeInfo):
+
+    def __init__(self, name, size, other_type_name) -> None:
+        self.name = name
+        self.size = size
+        self.other_type_name = other_type_name
+
+    @classmethod
+    def _from_json(cls, d: t.Dict[str, t.Any]) -> "TypeDef":
+        return cls(name=d["name"], size=d["size"], other_type_name=d["other_type_name"])
+
+    def _to_json(self) -> t.Dict[str, int]:
+        return {"T": 11, "name": self.name, "size": self.size, "other_type_name": self.other_type_name}
+
+    def __eq__(self, other: t.Any) -> bool:
+        return isinstance(other, TypeDef) and self.name == other.name and self.size == other.size and self.other_type_name == other.other_type_name
+
+    def __hash__(self) -> int:
+        return hash((self.name, self.size, self.other_type_name))
+
+    def __str__(self) -> str:
+        return self.name
+
 class Disappear(TypeInfo):
     """Target type for variables that don't appear in the ground truth function"""
     size = 0
@@ -1061,6 +1084,7 @@ class TypeLibCodec:
             8: Void,
             9: FunctionPointer,
             10: Disappear,
+            11: TypeDef
         }
         return classes[d["T"]]._from_json(d)
 

@@ -17,14 +17,10 @@ import typing as t
 try:
     import ghidra.program.model.listing as listing
     import ghidra.program.model.data as data
-    from ghidra.program.model.data import PointerDataType, ArrayDataType, StructureDataType, UnionDataType
-    from ghidra.program.database.data import PointerDB, ArrayDB, StructureDB, UnionDB
+    from ghidra.program.model.data import PointerDataType, ArrayDataType, StructureDataType, UnionDataType, TypedefDataType, FunctionDefinitionDataType
+    from ghidra.program.database.data import PointerDB, ArrayDB, StructureDB, UnionDB, TypedefDB, FunctionDefinitionDB
 except ImportError:
     pass
-# try:
-#     import ida_typeinf  # type: ignore
-# except ImportError:
-#     print("Could not import ida_typeinf. Cannot parse IDA types.")
 
 
 class TypeLib:
@@ -164,7 +160,7 @@ class TypeLib:
             self._data = data
 
     @staticmethod
-    def parse_ghidra_type(typ: "ghidra.program.model.data") -> "TypeInfo":
+    def parse_ghidra_type(typ: "ghidra.program.model.data.Datatype") -> "TypeInfo":
         """Parses an IDA tinfo_t object"""
         # if typ.is_void()
         #     return Void()
@@ -172,23 +168,28 @@ class TypeLib:
         #     return FunctionPointer(name=typ.dstr())
         if typ is None:
             return
-
-        if isinstance(typ, (PointerDataType.__pytype__, PointerDB.__pytype__)):
-            return Pointer(typ.getName())
-        if isinstance(typ, (ArrayDataType.__pytype__, ArrayDB.__pytype__)):
+        
+        elif isinstance(typ, (FunctionDefinitionDataType.__pytype__, FunctionDefinitionDB.__pytype__)):
+            # Rather than actually encoding function definitions, we'll just
+            # typedef them to void, so function pointers will be of type void*.
+            return TypeDef(name=typ.getName(), size=typ.getLength(), other_type_name="void")
+        # TIL that PointerDataType do not have to have a subtype
+        elif isinstance(typ, (PointerDataType.__pytype__, PointerDB.__pytype__)) and typ.getDataType() is not None:
+            return Pointer(typ.getDataType().getName())
+        elif isinstance(typ, (ArrayDataType.__pytype__, ArrayDB.__pytype__)):
             # To get array type info, first create an
             # array_type_data_t then call get_array_details to
             # populate it. Unions and structs follow a similar
             # pattern.
             nelements = typ.getNumElements()
             element_size = typ.getElementLength()
-            element_type = typ.getName()
+            element_type = typ.getDataType().getName()
             return Array(
                 nelements=nelements,
                 element_size=element_size,
                 element_type=element_type,
             )
-        if isinstance(typ, (StructureDataType.__pytype__, StructureDB.__pytype__)):
+        elif isinstance(typ, (StructureDataType.__pytype__, StructureDB.__pytype__)):
             name = typ.getName()
             size = typ.getLength()
             components = typ.getDefinedComponents()
@@ -210,7 +211,7 @@ class TypeLib:
             if end_padding > 0:
                 layout.append(UDT.Padding(end_padding))
             return Struct(name=name, layout=layout)
-        if isinstance(typ, (UnionDataType.__pytype__, UnionDB.__pytype__)):
+        elif isinstance(typ, (UnionDataType.__pytype__, UnionDB.__pytype__)):
             name = typ.getName()
             size = typ.getLength()
             components = typ.getDefinedComponents()
@@ -227,7 +228,10 @@ class TypeLib:
                 return Union(name=name, members=members)
             return Union(name=name, members=members, padding=UDT.Padding(end_padding))
 
-        return TypeInfo(name=typ.getName(), size=typ.getLength())
+        elif isinstance(typ, (TypedefDataType.__pytype__, TypedefDB.__pytype__)):
+            return TypeDef(name=typ.getName(), size=typ.getLength(), other_type_name=typ.getDataType().getName())
+
+        return TypeInfo(name=typ.getName(), size=typ.getLength(), debug=typ.getDescription() + "\n" + typ.__class__.__name__)
 
     def add_ghidra_type(
         self, typ: "ghidra.program.model.data", worklist: t.Optional[t.Set[str]] = None
@@ -241,12 +245,22 @@ class TypeLib:
         worklist.add(typ.getName())
         new_type: TypeInfo = self.parse_ghidra_type(typ)
         # If this type isn't a duplicate, break down the subtypes, if any exists
-        if not self._data[new_type.size].add(new_type) and isinstance(typ, (StructureDataType.__pytype__, UnionDataType.__pytype__, StructureDB.__pytype__, UnionDB.__pytype__)):
-            components = typ.getComponents()
-            for component in components:
-                self.add_ghidra_type(component.getDataType(), worklist)
-            # for i in range(num_components):
-            #     self.add_ghidra_type(type.getComponent(i), worklist)
+        if self._data[new_type.size].add(new_type):
+            # Type already exists
+            pass
+        else:
+            subtypes = None
+            if isinstance(typ, (StructureDataType.__pytype__, StructureDB.__pytype__, UnionDataType.__pytype__, UnionDB.__pytype__)):
+                subtypes = [t.getDataType() for t in typ.getComponents()]
+            elif isinstance(typ, (PointerDataType.__pytype__, PointerDB.__pytype__, ArrayDataType.__pytype__, ArrayDB.__pytype__)):
+                if typ.getDataType() is not None:
+                    subtypes = [typ.getDataType()]
+            elif isinstance(typ, (TypedefDataType.__pytype__, TypedefDB.__pytype__)):
+                subtypes = [typ.getDataType()]
+
+            if subtypes is not None:
+                for subtype in subtypes:
+                    self.add_ghidra_type(subtype, worklist)
 
     def add_entry_list(self, size: int, entries: "TypeLib.EntryList") -> None:
         """Add an entry list of items of size 'size'"""
@@ -260,14 +274,18 @@ class TypeLib:
         entry.add(typ)
         self.add_entry_list(typ.size, entry)
 
-    def add_json_file(self, json_file: str, *, threads: int = 1) -> None:
-        """Adds the info in a serialized (gzipped) JSON file to this TypeLib"""
+    def add_json_file(self, json_file: str, *, threads: int = 1, ungzip = False) -> None:
+        """Adds the info in a serialized JSON file to this TypeLib"""
         if not os.path.exists(json_file):
             return
             
         other: t.Optional[t.Any] = None
-        with open(json_file, "r") as other_file:
-            other = TypeLibCodec.decode(other_file.read())
+        if ungzip:
+            with gzip.open(json_file, "rt") as other_file:
+                other = TypeLibCodec.decode(other_file.read())
+        else:
+            with open(json_file, "r") as other_file:
+                other = TypeLibCodec.decode(other_file.read())
         if other is not None and isinstance(other, TypeLib):
             for size, entries in other.items():
                 self.add_entry_list(size, entries)
@@ -512,9 +530,10 @@ class TypeLib:
 class TypeInfo:
     """Stores information about a type"""
 
-    def __init__(self, *, name: t.Optional[str], size: int):
+    def __init__(self, *, name: t.Optional[str], size: int, debug: t.Optional[str] = None):
         self.name = name
         self.size = size
+        self.debug = debug
 
     def accessible_offsets(self) -> t.Tuple[int, ...]:
         """Offsets accessible in this type"""
@@ -553,18 +572,18 @@ class TypeInfo:
     @classmethod
     def _from_json(cls, d: t.Dict[str, t.Any]) -> "TypeInfo":
         """Decodes from a dictionary"""
-        return cls(name=d["n"], size=d["s"])
+        return cls(name=d["n"], size=d["s"], debug=d["debug"])
 
     def _to_json(self) -> t.Dict[str, t.Any]:
-        return {"T": 1, "n": self.name, "s": self.size}
+        return {"T": 1, "n": self.name, "s": self.size, "debug": self.debug}
 
     def __eq__(self, other: t.Any) -> bool:
         if isinstance(other, TypeInfo):
-            return self.name == other.name and self.size == other.size
+            return self.name == other.name and self.size == other.size and self.debug == other.debug
         return False
 
     def __hash__(self) -> int:
-        return hash((self.name, self.size))
+        return hash((self.name, self.size, self.debug))
 
     def __str__(self) -> str:
         return f"{self.name}"
@@ -846,10 +865,11 @@ class Struct(UDT):
         return hash((self.name, self.layout))
 
     def __str__(self) -> str:
-        if self.name is None:
-            ret = f"struct {{ "
+
+        if self.name is not None:
+            return self.name
         else:
-            ret = f"struct {self.name} {{ "
+            ret = f"struct {{ "
         for l in self.layout:
             ret += f"{str(l)}; "
         ret += "}"
@@ -927,10 +947,10 @@ class Union(UDT):
         return hash((self.name, self.members, self.padding))
 
     def __str__(self) -> str:
-        if self.name is None:
-            ret = f"union {{ "
+        if self.name is not None:
+            return self.name
         else:
-            ret = f"union {self.name} {{ "
+            ret = f"union {{ "
         for m in self.members:
             ret += f"{str(m)}; "
         if self.padding is not None:
@@ -963,6 +983,29 @@ class Void(TypeInfo):
 
     def __str__(self) -> str:
         return "void"
+    
+class TypeDef(TypeInfo):
+
+    def __init__(self, name, size, other_type_name) -> None:
+        self.name = name
+        self.size = size
+        self.other_type_name = other_type_name
+
+    @classmethod
+    def _from_json(cls, d: t.Dict[str, t.Any]) -> "TypeDef":
+        return cls(name=d["name"], size=d["size"], other_type_name=d["other_type_name"])
+
+    def _to_json(self) -> t.Dict[str, int]:
+        return {"T": 11, "name": self.name, "size": self.size, "other_type_name": self.other_type_name}
+
+    def __eq__(self, other: t.Any) -> bool:
+        return isinstance(other, TypeDef) and self.name == other.name and self.size == other.size and self.other_type_name == other.other_type_name
+
+    def __hash__(self) -> int:
+        return hash((self.name, self.size, self.other_type_name))
+
+    def __str__(self) -> str:
+        return self.name
 
 class Disappear(TypeInfo):
     """Target type for variables that don't appear in the ground truth function"""
@@ -1031,15 +1074,7 @@ class TypeLibCodec:
 
     @staticmethod
     def read_metadata(d: t.Dict[str, t.Any]) -> "TypeLibCodec.CodecTypes":
-        classes: t.Dict[
-            t.Union[int, str],
-            t.Union[
-                t.Type["TypeLib"],
-                t.Type["TypeLib.EntryList"],
-                t.Type["TypeInfo"],
-                t.Type["UDT.Member"],
-            ],
-        ] = {
+        classes = {
             "E": TypeLib.EntryList,
             0: TypeLib,
             1: TypeInfo,
@@ -1052,6 +1087,7 @@ class TypeLibCodec:
             8: Void,
             9: FunctionPointer,
             10: Disappear,
+            11: TypeDef,
         }
         return classes[d["T"]]._from_json(d)
 
